@@ -40,8 +40,11 @@ passport.deserializeUser(function (user, done) {
 })
 
 const userSchema = new mongoose.Schema({
+    username: String,
     email: String,
     password: String,
+    profile: Object,
+    googleId: String,
 })
 userSchema.plugin(findOrCreate)
 
@@ -55,9 +58,16 @@ passport.use(
             callbackURL: "http://localhost:3000/auth/google/callback",
         },
         function (accessToken, refreshToken, profile, cb) {
-            User.findOrCreate({googleId: profile.id}, function (err, user) {
-                return cb(err, user)
-            })
+            User.findOrCreate(
+                {
+                    googleId: profile.id,
+                    username: profile.displayName,
+                    profile: profile,
+                },
+                function (err, user) {
+                    return cb(err, user)
+                }
+            )
         }
     )
 )
@@ -124,7 +134,7 @@ app.get("/auth/google", passport.authenticate("google", {scope: ["profile"]}))
 app.get(
     "/auth/google/callback",
     passport.authenticate("google", {
-        failureRedirect: "http://localhost:3000/api",
+        failureRedirect: "http://localhost:5173",
     }),
     function (req, res) {
         res.redirect("http://localhost:5173")
