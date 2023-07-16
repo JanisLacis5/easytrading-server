@@ -6,6 +6,8 @@ const mongoose = require("mongoose")
 const bcrypt = require("bcrypt")
 const passport = require("passport")
 const GoogleStrategy = require("passport-google-oauth20").Strategy
+const FacebookStrategy = require("passport-facebook").Strategy
+const TwitterStrategy = require("passport-twitter").Strategy
 const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
 
@@ -27,7 +29,7 @@ app.use(
         secret: "es",
         resave: false,
         saveUninitialized: true,
-        cookie: {secure: true},
+        cookie: {secure: false},
     })
 )
 app.use(passport.session())
@@ -40,11 +42,13 @@ passport.deserializeUser(function (user, done) {
 })
 
 const userSchema = new mongoose.Schema({
+    googleId: String,
+    facebookId: String,
+    twitterId: String,
     username: String,
     email: String,
     password: String,
     profile: Object,
-    googleId: String,
 })
 userSchema.plugin(findOrCreate)
 
@@ -68,6 +72,42 @@ passport.use(
                     return cb(err, user)
                 }
             )
+        }
+    )
+)
+
+passport.use(
+    new FacebookStrategy(
+        {
+            clientID: process.env.FACEBOOK_APP_ID,
+            clientSecret: process.env.FACEBOOK_APP_SECRET,
+            callbackURL: "http://localhost:3000/auth/facebook/callback",
+        },
+        function (accessToken, refreshToken, profile, cb) {
+            User.findOrCreate(
+                {
+                    facebookId: profile.id,
+                    username: profile.username,
+                },
+                function (err, user) {
+                    return cb(err, user)
+                }
+            )
+        }
+    )
+)
+
+passport.use(
+    new TwitterStrategy(
+        {
+            consumerKey: process.env.TWITTER_CLIENT_ID,
+            consumerSecret: process.env.TWITTER_CLIENT_SECRET,
+            callbackURL: "http://localhost:3000/auth/twitter/callback",
+        },
+        function (token, tokenSecret, profile, cb) {
+            User.findOrCreate({twitterId: profile.id}, function (err, user) {
+                return cb(err, user)
+            })
         }
     )
 )
@@ -128,12 +168,38 @@ app.post("/api/signup", (req, res) => {
 app.get("/api/login/google", (req, res) => {
     res.redirect("http://localhost:3000/auth/google")
 })
-
 app.get("/auth/google", passport.authenticate("google", {scope: ["profile"]}))
-
 app.get(
     "/auth/google/callback",
     passport.authenticate("google", {
+        failureRedirect: "http://localhost:5173",
+    }),
+    function (req, res) {
+        res.redirect("http://localhost:5173")
+    }
+)
+
+app.get("/api/login/facebook", (req, res) => {
+    res.redirect("http://localhost:3000/auth/facebook")
+})
+app.get("/auth/facebook", passport.authenticate("facebook"))
+app.get(
+    "/auth/facebook/callback",
+    passport.authenticate("facebook", {
+        failureRedirect: "http://localhost:5173",
+    }),
+    function (req, res) {
+        res.redirect("http://localhost:5173")
+    }
+)
+
+app.get("/api/login/twitter", (req, res) => {
+    res.redirect("http://localhost:3000/auth/twitter")
+})
+app.get("/auth/twitter", passport.authenticate("twitter"))
+app.get(
+    "/auth/twitter/callback",
+    passport.authenticate("twitter", {
         failureRedirect: "http://localhost:5173",
     }),
     function (req, res) {
