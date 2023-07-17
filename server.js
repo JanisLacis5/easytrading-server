@@ -48,7 +48,6 @@ const userSchema = new mongoose.Schema({
     username: String,
     email: String,
     password: String,
-    profile: Object,
 })
 userSchema.plugin(findOrCreate)
 
@@ -66,7 +65,6 @@ passport.use(
                 {
                     googleId: profile.id,
                     username: profile.displayName,
-                    profile: profile,
                 },
                 function (err, user) {
                     return cb(err, user)
@@ -124,11 +122,12 @@ app.post("/api/login", (req, res) => {
                 req.body.password,
                 item.password,
                 function (err, result) {
-                    console.log(result)
+                    if (result) res.json(item)
+                    else res.json({message: "incorrect password"})
                 }
             )
         } else {
-            res.json({message: "bad"})
+            res.json({message: "user does not exist"})
         }
     })
 })
@@ -144,19 +143,18 @@ app.post("/api/signup", (req, res) => {
                             password: hash,
                         })
                         user.save()
-                            .then(() => {
-                                res.json({message: "success"})
+                        User.findOne({email: req.body.email})
+                            .then((item) => {
+                                res.json({item, message: "success"})
                             })
-                            .catch((err) => {
-                                res.json({message: err})
-                            })
+                            .catch((err) => console.log(err))
                     } else {
                         res.json({error: err})
                     }
                 })
             } else {
                 res.json({
-                    error: "User already exists",
+                    message: "User already exists",
                 })
             }
         })
@@ -175,7 +173,7 @@ app.get(
         failureRedirect: "http://localhost:5173",
     }),
     function (req, res) {
-        res.redirect("http://localhost:5173")
+        res.redirect("http://localhost:5173/signup")
     }
 )
 
