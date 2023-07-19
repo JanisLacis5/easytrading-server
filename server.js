@@ -10,7 +10,6 @@ const FacebookStrategy = require("passport-facebook").Strategy
 const TwitterStrategy = require("passport-twitter").Strategy
 const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
-const {default: axios} = require("axios")
 
 const saltRounds = 10
 
@@ -55,6 +54,7 @@ const userSchema = new mongoose.Schema({
     email: String,
     password: String,
     profile: Object,
+    trades: Array,
 })
 userSchema.plugin(findOrCreate)
 
@@ -105,25 +105,6 @@ passport.use(
     )
 )
 
-// passport.use(
-//     new TwitterStrategy(
-//         {
-//             consumerKey: process.env.TWITTER_CLIENT_ID,
-//             consumerSecret: process.env.TWITTER_CLIENT_SECRET,
-//             callbackURL: "http://localhost:3000/auth/twitter/callback",
-//         },
-//         function (token, tokenSecret, profile, cb) {
-//             User.findOrCreate({twitterId: profile.id}, function (err, user) {
-//                 return cb(err, user)
-//             })
-//         }
-//     )
-// )
-
-app.get("/api", (req, res) => {
-    res.json({message: "hello"})
-})
-
 app.post("/api/login", (req, res) => {
     const email = req.body.email
     User.findOne({email: email}).then((item) => {
@@ -132,7 +113,11 @@ app.post("/api/login", (req, res) => {
                 req.body.password,
                 item.password,
                 function (err, result) {
-                    if (result) res.json(item)
+                    if (result)
+                        res.json({
+                            id: item.id,
+                            trades: item.trades,
+                        })
                     else res.json({message: "incorrect password"})
                 }
             )
@@ -140,19 +125,6 @@ app.post("/api/login", (req, res) => {
             res.json({message: "user does not exist"})
         }
     })
-    // const user = new User({
-    //     email: req.body.email,
-    //     password: req.body.password,
-    // })
-    // req.login(user, (err) => {
-    //     if (err) {
-    //         console.log(err)
-    //     } else {
-    //         passport.authenticate("local")(req, res, () => {
-    //             res.json(user)
-    //         })
-    //     }
-    // })
 })
 
 app.post("/api/signup", (req, res) => {
@@ -168,7 +140,11 @@ app.post("/api/signup", (req, res) => {
                         user.save()
                         User.findOne({email: req.body.email})
                             .then((item) => {
-                                res.json({item, message: "success"})
+                                res.json({
+                                    id: item.id,
+                                    trades: item.trades,
+                                    message: "success",
+                                })
                             })
                             .catch((err) => console.log(err))
                     } else {
@@ -219,19 +195,22 @@ app.get(
     }
 )
 
-// app.get("/auth/twitter", passport.authenticate("twitter"))
-// app.get(
-//     "/auth/twitter/callback",
-//     passport.authenticate("twitter", {
-//         failureRedirect: "http://localhost:5173",
-//     }),
-//     function (req, res) {
-//         res.redirect("http://localhost:5173")
-//     }
-// )
-
-app.post("/api/newtrade", (req, res) => {
-    console.log(req.body)
+app.post("/api/newtrade", async (req, res) => {
+    const {id, stock, accBefore, accAfter, pl, date, time} = req.body
+    await User.findByIdAndUpdate(id, {
+        $push: {
+            trades: {
+                stock: stock,
+                accBefore: accBefore,
+                accAfter: accAfter,
+                pl: pl,
+                date: date,
+                time: time,
+            },
+        },
+    })
+    const user = await User.findById(id)
+    res.status(200).json({id: user.id, trades: user.trades})
 })
 
 app.listen(3000, () => {
