@@ -7,9 +7,9 @@ const bcrypt = require("bcrypt")
 const passport = require("passport")
 const GoogleStrategy = require("passport-google-oauth20").Strategy
 const FacebookStrategy = require("passport-facebook").Strategy
-const TwitterStrategy = require("passport-twitter").Strategy
 const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
+const {default: axios} = require("axios")
 
 const saltRounds = 10
 
@@ -47,8 +47,7 @@ passport.deserializeUser(function (user, done) {
 })
 
 const userSchema = new mongoose.Schema({
-    googleId: String,
-    facebookId: String,
+    userId: String,
     twitterId: String,
     username: String,
     email: String,
@@ -65,13 +64,12 @@ passport.use(
         {
             clientID: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            callbackURL: "http://localhost:3000/auth/google/callback",
-            userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo",
+            callbackURL: "/oauth2/redirect/google",
         },
         function (req, accessToken, refreshToken, profile, cb) {
             User.findOrCreate(
                 {
-                    googleId: profile.id,
+                    userId: profile.id,
                     username: profile.displayName,
                     email: profile.emails[0].value,
                 },
@@ -94,7 +92,7 @@ passport.use(
         function (accessToken, refreshToken, profile, cb) {
             User.findOrCreate(
                 {
-                    facebookId: profile.id,
+                    userId: profile.id,
                     username: profile.username,
                 },
                 function (err, user) {
@@ -105,26 +103,44 @@ passport.use(
     )
 )
 
+app.get("/api", (req, res) => {
+    res.json({error: "error"})
+})
+
 app.post("/api/login", (req, res) => {
     const email = req.body.email
-    User.findOne({email: email}).then((item) => {
-        if (item) {
-            bcrypt.compare(
-                req.body.password,
-                item.password,
-                function (err, result) {
-                    if (result)
-                        res.json({
-                            id: item.id,
-                            trades: item.trades,
-                        })
-                    else res.json({message: "incorrect password"})
-                }
-            )
-        } else {
-            res.json({message: "user does not exist"})
-        }
-    })
+    const id = req.body.id
+    if (!email) {
+        User.findOne({userId: id}).then((item) => {
+            if (item) {
+                res.json({
+                    id: item.id,
+                    trades: item.trades,
+                })
+            } else {
+                res.json({message: "social user does not exist"})
+            }
+        })
+    } else {
+        User.findOne({email: email}).then((item) => {
+            if (item) {
+                bcrypt.compare(
+                    req.body.password,
+                    item.password,
+                    function (err, result) {
+                        if (result)
+                            res.json({
+                                id: item.id,
+                                trades: item.trades,
+                            })
+                        else res.json({message: "incorrect password"})
+                    }
+                )
+            } else {
+                res.json({message: "user does not exist"})
+            }
+        })
+    }
 })
 
 app.post("/api/signup", (req, res) => {
@@ -164,23 +180,22 @@ app.post("/api/signup", (req, res) => {
 
 app.get("/auth/google", passport.authenticate("google", {scope: ["email"]}))
 app.get(
-    "/auth/google/callback",
+    "/oauth2/redirect/google",
     passport.authenticate("google", {
-        failureRedirect: "http://localhost:5173",
+        failureRedirect: "http://localhost:3000/api",
     }),
-    function (req, res) {
-        const id = req.user.googleId
-        // req.login(id, (err) => {
-        //     if (err) {
-        //         console.log(err)
-        //     } else {
-        //         passport.authenticate("local")(req, res, () => {
-        //             res.json({message: "hello"})
-        //         })
-        //     }
-        // })
-        // res.redirect("http://localhost:5173/dashboard")
-        res.send(id)
+    async function (req, res) {
+        const id = req.user.userId
+        try {
+            const {data} = await axios.post("http://localhost:3000/api/login", {
+                id: id,
+            })
+            res.redirect(
+                `http://localhost:5173/loading?id=${data.id}&trades=${data.trades}`
+            )
+        } catch (error) {
+            console.log(error)
+        }
     }
 )
 
@@ -196,7 +211,7 @@ app.get(
 )
 
 app.post("/api/newtrade", async (req, res) => {
-    const {id, stock, accBefore, accAfter, pl, date, time} = req.body
+    const {id, stock, accBefore, accAfter, pl, date, time, action} = req.body
     await User.findByIdAndUpdate(id, {
         $push: {
             trades: {
@@ -206,12 +221,27 @@ app.post("/api/newtrade", async (req, res) => {
                 pl: pl,
                 date: date,
                 time: time,
+                action: action,
             },
         },
     })
     const user = await User.findById(id)
     res.status(200).json({id: user.id, trades: user.trades})
 })
+
+// app.get("/sociallogin", (req, res) => {
+//     const id = req.query.id
+//     User.findOne({userId: id}).then((item) => {
+//         if (item) {
+//             res.json({
+//                 id: item.id,
+//                 trades: item.trades,
+//             })
+//         } else {
+//             res.json({message: "user does not exist"})
+//         }
+//     })
+// })
 
 app.listen(3000, () => {
     console.log("Server is running on port 3000")
