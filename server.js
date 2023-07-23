@@ -89,13 +89,14 @@ passport.use(
             clientSecret: process.env.FACEBOOK_APP_SECRET,
             callbackURL: "http://localhost:3000/auth/facebook/callback",
         },
-        function (accessToken, refreshToken, profile, cb) {
+        function (req, accessToken, refreshToken, profile, cb) {
             User.findOrCreate(
                 {
                     userId: profile.id,
                     username: profile.username,
                 },
                 function (err, user) {
+                    req = profile.id
                     return cb(err, user)
                 }
             )
@@ -191,7 +192,9 @@ app.get(
                 id: id,
             })
             res.redirect(
-                `http://localhost:5173/loading?id=${data.id}&trades=${data.trades}`
+                `http://localhost:5173/loading?id=${
+                    data.id
+                }&trades=${JSON.stringify(data.trades)}`
             )
         } catch (error) {
             console.log(error)
@@ -205,8 +208,20 @@ app.get(
     passport.authenticate("facebook", {
         failureRedirect: "http://localhost:5173",
     }),
-    function (req, res) {
-        res.redirect("http://localhost:5173")
+    async function (req, res) {
+        const id = req.user.userId
+        try {
+            const {data} = await axios.post("http://localhost:3000/api/login", {
+                id: id,
+            })
+            res.redirect(
+                `http://localhost:5173/loading?id=${
+                    data.id
+                }&trades=${JSON.stringify(data.trades)}`
+            )
+        } catch (error) {
+            console.log(error)
+        }
     }
 )
 
