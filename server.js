@@ -10,8 +10,10 @@ const FacebookStrategy = require("passport-facebook").Strategy
 const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
 const {default: axios} = require("axios")
+const jwt = require("jsonwebtoken")
 
 const saltRounds = 10
+const secretKey = "hello"
 
 const app = express()
 app.use((req, res, next) => {
@@ -104,8 +106,32 @@ passport.use(
     )
 )
 
+const authenticateJWT = (req, res, next) => {
+    const token = req.header("Authorization")?.split(" ")[1]
+
+    if (!token) {
+        return res.status(401).json({message: "Unauthorized"})
+    }
+
+    jwt.verify(token, secretKey, (err, user) => {
+        if (err) {
+            return res.status(403).json({message: "Invalid token"})
+        }
+
+        req.user = user
+        next()
+    })
+}
+
 app.get("/api", (req, res) => {
     res.json({error: "error"})
+})
+
+app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
+    const id = req.params.id
+    const user = await User.findByIdAndUpdate(id, {trades: []})
+    await user.save()
+    res.json({message: "works"})
 })
 
 app.post("/api/login", (req, res) => {
@@ -114,9 +140,17 @@ app.post("/api/login", (req, res) => {
     if (!email) {
         User.findOne({userId: id}).then((item) => {
             if (item) {
+                const token = jwt.sign(
+                    {id: item.id, role: item.role},
+                    secretKey,
+                    {
+                        expiresIn: "1h",
+                    }
+                )
                 res.json({
                     id: item.id,
                     trades: item.trades,
+                    token: token,
                 })
             } else {
                 res.json({message: "social user does not exist"})
@@ -129,12 +163,20 @@ app.post("/api/login", (req, res) => {
                     req.body.password,
                     item.password,
                     function (err, result) {
-                        if (result)
+                        if (result) {
+                            const token = jwt.sign(
+                                {id: item.id, role: item.role},
+                                secretKey,
+                                {
+                                    expiresIn: "1h",
+                                }
+                            )
                             res.json({
                                 id: item.id,
                                 trades: item.trades,
+                                token,
                             })
-                        else res.json({message: "incorrect password"})
+                        } else res.json({message: "incorrect password"})
                     }
                 )
             } else {
@@ -157,9 +199,17 @@ app.post("/api/signup", (req, res) => {
                         user.save()
                         User.findOne({email: req.body.email})
                             .then((item) => {
+                                const token = jwt.sign(
+                                    {id: item.id, role: item.role},
+                                    secretKey,
+                                    {
+                                        expiresIn: "1h",
+                                    }
+                                )
                                 res.json({
                                     id: item.id,
                                     trades: item.trades,
+                                    token,
                                     message: "success",
                                 })
                             })
