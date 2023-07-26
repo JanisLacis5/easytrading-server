@@ -294,20 +294,6 @@ app.post("/api/newtrade", async (req, res) => {
     res.status(200).json({id: user.id, trades: user.trades})
 })
 
-// app.get("/sociallogin", (req, res) => {
-//     const id = req.query.id
-//     User.findOne({userId: id}).then((item) => {
-//         if (item) {
-//             res.json({
-//                 id: item.id,
-//                 trades: item.trades,
-//             })
-//         } else {
-//             res.json({message: "user does not exist"})
-//         }
-//     })
-// })
-
 app.listen(3000, () => {
     console.log("Server is running on port 3000")
 })
