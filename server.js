@@ -20,6 +20,8 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*")
     next()
 })
+app.use(express.json({limit: "3mb"}))
+app.use(express.urlencoded({extended: true, limit: "3mb"}))
 
 app.use(
     cors({
@@ -298,6 +300,21 @@ app.post("/api/newtrade", async (req, res) => {
     })
     const user = await User.findById(id)
     res.status(200).json({id: user.id, trades: user.trades})
+})
+
+app.post("/api/updateaccbalance", async (req, res) => {
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.body.id,
+            {
+                $set: {"data.account": req.body.setAcc},
+            },
+            {new: true}
+        )
+        res.json({message: "success", info: user.data})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.listen(3000, () => {
