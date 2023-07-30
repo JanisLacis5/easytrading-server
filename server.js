@@ -56,6 +56,7 @@ const userSchema = new mongoose.Schema({
     password: String,
     profile: Object,
     trades: Array,
+    data: Object,
 })
 userSchema.plugin(findOrCreate)
 
@@ -150,6 +151,7 @@ app.post("/api/login", (req, res) => {
                 res.json({
                     id: item.id,
                     trades: item.trades,
+                    info: item.data,
                     token: token,
                 })
             } else {
@@ -174,6 +176,7 @@ app.post("/api/login", (req, res) => {
                             res.json({
                                 id: item.id,
                                 trades: item.trades,
+                                info: item.data,
                                 token,
                             })
                         } else res.json({message: "incorrect password"})
@@ -186,47 +189,50 @@ app.post("/api/login", (req, res) => {
     }
 })
 
-app.post("/api/signup", (req, res) => {
+app.post("/api/checkuser", (req, res) => {
     User.findOne({email: req.body.email})
         .then((item) => {
             if (!item) {
-                bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-                    if (!err) {
-                        const user = new User({
-                            email: req.body.email,
-                            password: hash,
-                        })
-                        user.save()
-                        User.findOne({email: req.body.email})
-                            .then((item) => {
-                                const token = jwt.sign(
-                                    {id: item.id, role: item.role},
-                                    secretKey,
-                                    {
-                                        expiresIn: "1h",
-                                    }
-                                )
-                                res.json({
-                                    id: item.id,
-                                    trades: item.trades,
-                                    token,
-                                    message: "success",
-                                })
-                            })
-                            .catch((err) => console.log(err))
-                    } else {
-                        res.json({error: err})
-                    }
-                })
+                res.json({message: "success"})
             } else {
-                res.json({
-                    message: "User already exists",
-                })
+                res.json({message: "user already exists"})
             }
         })
-        .catch((err) => {
-            console.log(err)
-        })
+        .catch((e) => console.log(e))
+})
+
+app.post("/api/signup", (req, res) => {
+    bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+        if (!err) {
+            const user = new User({
+                email: req.body.email,
+                data: req.body.userData,
+                password: hash,
+            })
+            user.save()
+                .then(() => {
+                    User.findOne({email: req.body.email}).then((item) => {
+                        const token = jwt.sign(
+                            {id: item.id, role: item.role},
+                            secretKey,
+                            {
+                                expiresIn: "1h",
+                            }
+                        )
+                        res.json({
+                            id: item.id,
+                            trades: item.trades,
+                            info: item.data,
+                            token,
+                            message: "success",
+                        })
+                    })
+                })
+                .catch((err) => console.log(err))
+        } else {
+            res.json({error: err})
+        }
+    })
 })
 
 app.get("/auth/google", passport.authenticate("google", {scope: ["email"]}))
