@@ -97,19 +97,18 @@ passport.use(
             clientID: process.env.FACEBOOK_APP_ID,
             clientSecret: process.env.FACEBOOK_APP_SECRET,
             callbackURL: "http://localhost:3000/auth/facebook/callback",
+            profileFields: ["id", "emails", "name", "displayName", "photos"],
         },
         function (req, accessToken, refreshToken, profile, cb) {
-            console.log(profile)
             User.findOrCreate(
                 {
                     userId: profile.id,
+                    email: profile.emails[0].value,
                     data: {
                         firstName: profile.name.givenName,
                         lastName: profile.name.familyName,
                         username: profile.displayName,
-                        // image:
-                        // //     profile.photos[0].value ||
-                        //     "/img/faces/unknown-user-pic.jpg",
+                        image: profile.photos[0].value,
                         account: "0",
                         startingAccount: "0",
                     },
@@ -270,10 +269,7 @@ app.get(
     }
 )
 
-app.get(
-    "/auth/facebook",
-    passport.authenticate("facebook", {scope: ["profile"]})
-)
+app.get("/auth/facebook", passport.authenticate("facebook", {scope: ["email"]}))
 app.get(
     "/auth/facebook/callback",
     passport.authenticate("facebook", {
