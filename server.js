@@ -52,11 +52,8 @@ passport.deserializeUser(function (user, done) {
 
 const userSchema = new mongoose.Schema({
     userId: String,
-    twitterId: String,
-    username: String,
     email: String,
     password: String,
-    profile: Object,
     trades: Array,
     data: Object,
 })
@@ -75,8 +72,15 @@ passport.use(
             User.findOrCreate(
                 {
                     userId: profile.id,
-                    username: profile.displayName,
                     email: profile.emails[0].value,
+                    data: {
+                        firstName: profile.name.givenName,
+                        lastName: profile.name.familyName,
+                        username: profile.displayName,
+                        image: profile.photos[0].value,
+                        account: "0",
+                        startingAccount: "0",
+                    },
                 },
                 function (err, user) {
                     req = profile.id
@@ -95,10 +99,20 @@ passport.use(
             callbackURL: "http://localhost:3000/auth/facebook/callback",
         },
         function (req, accessToken, refreshToken, profile, cb) {
+            console.log(profile)
             User.findOrCreate(
                 {
                     userId: profile.id,
-                    username: profile.username,
+                    data: {
+                        firstName: profile.name.givenName,
+                        lastName: profile.name.familyName,
+                        username: profile.displayName,
+                        // image:
+                        // //     profile.photos[0].value ||
+                        //     "/img/faces/unknown-user-pic.jpg",
+                        account: "0",
+                        startingAccount: "0",
+                    },
                 },
                 function (err, user) {
                     req = profile.id
@@ -237,7 +251,10 @@ app.post("/api/signup", (req, res) => {
     })
 })
 
-app.get("/auth/google", passport.authenticate("google", {scope: ["email"]}))
+app.get(
+    "/auth/google",
+    passport.authenticate("google", {scope: ["email", "profile"]})
+)
 app.get(
     "/oauth2/redirect/google",
     passport.authenticate("google", {
@@ -246,21 +263,17 @@ app.get(
     async function (req, res) {
         const id = req.user.userId
         try {
-            const {data} = await axios.post("http://localhost:3000/api/login", {
-                id: id,
-            })
-            res.redirect(
-                `http://localhost:5173/loading?id=${
-                    data.id
-                }&trades=${JSON.stringify(data.trades)}`
-            )
+            res.redirect(`http://localhost:5173/loading?id=${id}`)
         } catch (error) {
             console.log(error)
         }
     }
 )
 
-app.get("/auth/facebook", passport.authenticate("facebook"))
+app.get(
+    "/auth/facebook",
+    passport.authenticate("facebook", {scope: ["profile"]})
+)
 app.get(
     "/auth/facebook/callback",
     passport.authenticate("facebook", {
@@ -269,19 +282,24 @@ app.get(
     async function (req, res) {
         const id = req.user.userId
         try {
-            const {data} = await axios.post("http://localhost:3000/api/login", {
-                id: id,
-            })
-            res.redirect(
-                `http://localhost:5173/loading?id=${
-                    data.id
-                }&trades=${JSON.stringify(data.trades)}`
-            )
+            res.redirect(`http://localhost:5173/loading?id=${id}`)
         } catch (error) {
             console.log(error)
         }
     }
 )
+
+app.post("/api/socialdata", async (req, res) => {
+    const {data} = await axios.post("http://localhost:3000/api/login", {
+        id: req.body.id,
+    })
+    res.json({
+        id: data.id,
+        trades: data.trades,
+        info: data.info,
+        token: data.token,
+    })
+})
 
 app.post("/api/newtrade", async (req, res) => {
     const {id, stock, accBefore, accAfter, pl, date, time, action} = req.body
