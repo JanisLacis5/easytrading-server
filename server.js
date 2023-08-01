@@ -74,6 +74,7 @@ passport.use(
                     userId: profile.id,
                     email: profile.emails[0].value,
                     data: {
+                        email: profile.emails[0].value,
                         firstName: profile.name.givenName,
                         lastName: profile.name.familyName,
                         username: profile.displayName,
@@ -105,6 +106,7 @@ passport.use(
                     userId: profile.id,
                     email: profile.emails[0].value,
                     data: {
+                        email: profile.emails[0].value,
                         firstName: profile.name.givenName,
                         lastName: profile.name.familyName,
                         username: profile.displayName,
@@ -329,6 +331,36 @@ app.post("/api/updateaccbalance", async (req, res) => {
     } catch (error) {
         console.log(error)
     }
+})
+
+app.post("/api/updateuser", async (req, res) => {
+    const {id, username, email, balance, image} = req.body
+
+    const user = await User.findById(id)
+
+    const newUsername = username ? username : user.data.username
+    const newEmail = email ? email : user.email
+    const newBalance = balance ? balance : user.data.account
+    const newImage = image ? image : user.data.iamge
+
+    const updatedUser = await User.findByIdAndUpdate(id, {
+        $set: {
+            "data.username": newUsername,
+            email: newEmail,
+            "data.account": newBalance,
+            "data.email": newEmail,
+            "data.image": newImage,
+        },
+    })
+
+    await updatedUser.save()
+
+    const response = await User.findById(id)
+
+    res.json({
+        message: "success",
+        info: response.data,
+    })
 })
 
 app.listen(3000, () => {
