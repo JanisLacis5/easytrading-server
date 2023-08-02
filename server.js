@@ -206,7 +206,7 @@ app.post("/api/login", (req, res) => {
     }
 })
 
-app.post("/api/checkuser", (req, res) => {
+app.post("/api/checkuser", async (req, res) => {
     User.findOne({email: req.body.email})
         .then((item) => {
             if (!item) {
@@ -360,6 +360,35 @@ app.post("/api/updateuser", async (req, res) => {
     res.json({
         message: "success",
         info: response.data,
+    })
+})
+
+app.post("/api/changepassword", (req, res) => {
+    bcrypt.hash(req.body.password, saltRounds, async (err, hash) => {
+        if (!err) {
+            const user = await User.findByIdAndUpdate(req.body.id, {
+                $set: {password: hash},
+            })
+            await user.save()
+
+            res.json({
+                message: "success",
+            })
+        } else {
+            res.json({error: err})
+        }
+    })
+})
+
+app.post("/api/deleteuser", async (req, res) => {
+    const user = await User.findById(req.body.id)
+    bcrypt.compare(req.body.password, user.password, async (err, result) => {
+        if (result) {
+            await User.findByIdAndRemove(req.body.id)
+            res.json({
+                message: "success",
+            })
+        } else res.json({message: "incorrect password"})
     })
 })
 
