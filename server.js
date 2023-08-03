@@ -392,6 +392,16 @@ app.post("/api/deleteuser", async (req, res) => {
     })
 })
 
+app.post("/api/changeplan", async (req, res) => {
+    await User.findByIdAndUpdate(req.body.id, {
+        $set: {"data.pricing": req.body.plan},
+    })
+    const user = await User.findById(req.body.id)
+    res.json({
+        info: user.data,
+    })
+})
+
 app.listen(3000, () => {
     console.log("Server is running on port 3000")
 })
