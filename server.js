@@ -172,6 +172,7 @@ app.post("/api/login", (req, res) => {
                     id: item.id,
                     trades: item.trades,
                     info: item.data,
+                    notes: item.notes,
                     token: token,
                 })
             } else {
@@ -197,6 +198,7 @@ app.post("/api/login", (req, res) => {
                                 id: item.id,
                                 trades: item.trades,
                                 info: item.data,
+                                notes: item.notes,
                                 token,
                             })
                         } else res.json({message: "incorrect password"})
