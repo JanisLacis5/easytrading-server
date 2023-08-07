@@ -56,6 +56,7 @@ const userSchema = new mongoose.Schema({
     password: String,
     trades: Array,
     data: Object,
+    notes: Array,
 })
 userSchema.plugin(findOrCreate)
 
@@ -73,6 +74,7 @@ passport.use(
                 {
                     userId: profile.id,
                     email: profile.emails[0].value,
+                    notes: [],
                     data: {
                         email: profile.emails[0].value,
                         firstName: profile.name.givenName,
@@ -105,6 +107,7 @@ passport.use(
                 {
                     userId: profile.id,
                     email: profile.emails[0].value,
+                    notes: [],
                     data: {
                         email: profile.emails[0].value,
                         firstName: profile.name.givenName,
@@ -400,6 +403,15 @@ app.post("/api/changeplan", async (req, res) => {
     res.json({
         info: user.data,
     })
+})
+
+app.post("/api/note", async (req, res) => {
+    const update = await User.findByIdAndUpdate(req.body.id, {
+        $push: {notes: {image: req.body.image, note: req.body.note}},
+    })
+    await update.save()
+    const user = await User.findById(req.body.id)
+    res.json({notes: user.notes})
 })
 
 app.listen(3000, () => {
