@@ -16,19 +16,16 @@ const saltRounds = 10
 const secretKey = "hello"
 
 const app = express()
-app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*")
-    next()
-})
 app.use(express.json({limit: "3mb"}))
 app.use(express.urlencoded({extended: true, limit: "3mb"}))
 
-app.use(
-    cors({
-        origin: ["http://localhost:5173"],
-        methods: "GET,POST,PUT,DELETE,OPTIONS",
-    })
-)
+const corsOptions = {
+    origin: "http://localhost:5173",
+    credentials: true,
+    optionSuccessStatus: 200,
+}
+app.use(cors(corsOptions))
+
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
 mongoose.connect("mongodb://0.0.0.0:27017/tradingDB")
@@ -56,7 +53,13 @@ const userSchema = new mongoose.Schema({
     password: String,
     trades: Array,
     data: Object,
-    notes: Array,
+    notes: [
+        {
+            pinned: Boolean,
+            image: String,
+            note: String,
+        },
+    ],
 })
 userSchema.plugin(findOrCreate)
 
@@ -74,7 +77,6 @@ passport.use(
                 {
                     userId: profile.id,
                     email: profile.emails[0].value,
-                    notes: [],
                     data: {
                         email: profile.emails[0].value,
                         firstName: profile.name.givenName,
@@ -107,7 +109,6 @@ passport.use(
                 {
                     userId: profile.id,
                     email: profile.emails[0].value,
-                    notes: [],
                     data: {
                         email: profile.emails[0].value,
                         firstName: profile.name.givenName,
@@ -409,11 +410,38 @@ app.post("/api/changeplan", async (req, res) => {
 
 app.post("/api/note", async (req, res) => {
     const update = await User.findByIdAndUpdate(req.body.id, {
-        $push: {notes: {image: req.body.image, note: req.body.note}},
+        $push: {
+            notes: {image: req.body.image, note: req.body.note, pinned: false},
+        },
     })
     await update.save()
     const user = await User.findById(req.body.id)
     res.json({notes: user.notes})
+})
+
+app.patch("/api/noteupdate", async (req, res) => {
+    const func = req.body.func
+    const id = req.body.id
+    const index = req.body.index
+
+    console.log(func)
+
+    const user = await User.findById(id)
+
+    if (func === "pin") {
+        user.notes[index].pinned = true
+    }
+    if (func === "unpin") {
+        user.notes[index].pinned = false
+    }
+    if (func === "delete") {
+        user.notes.pull(user.notes[index])
+    }
+
+    await user.save()
+
+    const updatedUser = await User.findById(id)
+    res.json({notes: updatedUser.notes})
 })
 
 app.listen(3000, () => {
