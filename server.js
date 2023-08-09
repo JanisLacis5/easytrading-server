@@ -57,7 +57,7 @@ const userSchema = new mongoose.Schema({
         {
             pinned: Boolean,
             image: String,
-            note: String,
+            text: String,
         },
     ],
 })
@@ -411,7 +411,7 @@ app.post("/api/changeplan", async (req, res) => {
 app.post("/api/note", async (req, res) => {
     const update = await User.findByIdAndUpdate(req.body.id, {
         $push: {
-            notes: {image: req.body.image, note: req.body.note, pinned: false},
+            notes: {image: req.body.image, text: req.body.text, pinned: false},
         },
     })
     await update.save()
@@ -423,8 +423,6 @@ app.patch("/api/noteupdate", async (req, res) => {
     const func = req.body.func
     const id = req.body.id
     const index = req.body.index
-
-    console.log(func)
 
     const user = await User.findById(id)
 
