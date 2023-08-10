@@ -265,15 +265,11 @@ app.get(
 app.get(
     "/oauth2/redirect/google",
     passport.authenticate("google", {
-        failureRedirect: "http://localhost:3000/api",
+        failureRedirect: "http://localhost:5173",
     }),
-    async function (req, res) {
+    function (req, res) {
         const id = req.user.userId
-        try {
-            res.redirect(`http://localhost:5173/loading?id=${id}`)
-        } catch (error) {
-            console.log(error)
-        }
+        res.redirect(`http://localhost:5173/loading?id=${id}`)
     }
 )
 
@@ -283,13 +279,9 @@ app.get(
     passport.authenticate("facebook", {
         failureRedirect: "http://localhost:5173",
     }),
-    async function (req, res) {
+    function (req, res) {
         const id = req.user.userId
-        try {
-            res.redirect(`http://localhost:5173/loading?id=${id}`)
-        } catch (error) {
-            console.log(error)
-        }
+        res.redirect(`http://localhost:5173/loading?id=${id}`)
     }
 )
 
@@ -302,6 +294,7 @@ app.post("/api/socialdata", async (req, res) => {
         trades: data.trades,
         info: data.info,
         token: data.token,
+        notes: data.notes,
     })
 })
 
@@ -324,7 +317,7 @@ app.post("/api/newtrade", async (req, res) => {
     res.status(200).json({id: user.id, trades: user.trades})
 })
 
-app.post("/api/updateaccbalance", async (req, res) => {
+app.patch("/api/updateaccbalance", async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(
             req.body.id,
@@ -386,7 +379,7 @@ app.post("/api/changepassword", (req, res) => {
     })
 })
 
-app.post("/api/deleteuser", async (req, res) => {
+app.patch("/api/deleteuser", async (req, res) => {
     const user = await User.findById(req.body.id)
     bcrypt.compare(req.body.password, user.password, async (err, result) => {
         if (result) {
