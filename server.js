@@ -28,7 +28,10 @@ app.use(cors(corsOptions))
 
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
-mongoose.connect("mongodb://0.0.0.0:27017/tradingDB")
+const userConn = mongoose.createConnection("mongodb://0.0.0.0:27017/tradingDB")
+const messageConn = mongoose.createConnection(
+    "mongodb://0.0.0.0:27017/tradingMessageDB"
+)
 
 app.use(
     session({
@@ -63,7 +66,16 @@ const userSchema = new mongoose.Schema({
 })
 userSchema.plugin(findOrCreate)
 
-const User = new mongoose.model("User", userSchema)
+const User = userConn.model("User", userSchema)
+
+const messageSchema = new mongoose.Schema({
+    userId: String,
+    email: String,
+    question: String,
+    message: String,
+})
+
+const Message = messageConn.model("Message", messageSchema)
 
 passport.use(
     new GoogleStrategy(
@@ -433,6 +445,17 @@ app.patch("/api/noteupdate", async (req, res) => {
 
     const updatedUser = await User.findById(id)
     res.json({notes: updatedUser.notes})
+})
+
+app.post("/api/message", async (req, res) => {
+    const message = new Message({
+        userId: req.body.id,
+        email: req.body.email,
+        question: req.body.question,
+        message: req.body.message,
+    })
+    await message.save()
+    res.json({message: "Message succesfully sent"})
 })
 
 app.listen(3000, () => {
