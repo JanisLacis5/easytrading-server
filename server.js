@@ -11,14 +11,20 @@ const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
 const {default: axios} = require("axios")
 const jwt = require("jsonwebtoken")
+const fs = require("fs")
+const {parse} = require("csv-parse")
+const {log} = require("console")
 
+// HASHING
 const saltRounds = 10
 const secretKey = "hello"
 
+// TEMPLATE
 const app = express()
 app.use(express.json({limit: "3mb"}))
 app.use(express.urlencoded({extended: true, limit: "3mb"}))
 
+// CORS
 const corsOptions = {
     origin: "http://localhost:5173",
     credentials: true,
@@ -26,13 +32,17 @@ const corsOptions = {
 }
 app.use(cors(corsOptions))
 
+// BODYPARSER
 app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
+
+// DATABASE
 const userConn = mongoose.createConnection("mongodb://0.0.0.0:27017/tradingDB")
 const messageConn = mongoose.createConnection(
     "mongodb://0.0.0.0:27017/tradingMessageDB"
 )
 
+// COOKIES / SESSIONS
 app.use(
     session({
         secret: "es",
@@ -50,6 +60,7 @@ passport.deserializeUser(function (user, done) {
     done(null, user)
 })
 
+// MONGOSSE
 const userSchema = new mongoose.Schema({
     userId: String,
     email: String,
@@ -77,6 +88,7 @@ const messageSchema = new mongoose.Schema({
 
 const Message = messageConn.model("Message", messageSchema)
 
+// PASSPORT SOCIAL LOGIN STRATEGIES
 passport.use(
     new GoogleStrategy(
         {
@@ -157,17 +169,13 @@ const authenticateJWT = (req, res, next) => {
     })
 }
 
-app.get("/api", (req, res) => {
-    res.json({error: "error"})
-})
+//////////////////////////////////////////////////////////////////////////////////
 
-app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
-    const id = req.params.id
-    const user = await User.findByIdAndUpdate(id, {trades: []})
-    await user.save()
-    res.json({message: "works"})
-})
+// ROUTES
 
+//////////////////////////////////////////////////////////////////////////////////
+
+// LOGIN
 app.post("/api/login", (req, res) => {
     const email = req.body.email
     const id = req.body.id
@@ -224,52 +232,7 @@ app.post("/api/login", (req, res) => {
     }
 })
 
-app.post("/api/checkuser", async (req, res) => {
-    User.findOne({email: req.body.email})
-        .then((item) => {
-            if (!item) {
-                res.json({message: "success"})
-            } else {
-                res.json({message: "user already exists"})
-            }
-        })
-        .catch((e) => console.log(e))
-})
-
-app.post("/api/signup", (req, res) => {
-    bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-        if (!err) {
-            const user = new User({
-                email: req.body.email,
-                data: req.body.userData,
-                password: hash,
-            })
-            user.save()
-                .then(() => {
-                    User.findOne({email: req.body.email}).then((item) => {
-                        const token = jwt.sign(
-                            {id: item.id, role: item.role},
-                            secretKey,
-                            {
-                                expiresIn: "1h",
-                            }
-                        )
-                        res.json({
-                            id: item.id,
-                            trades: item.trades,
-                            info: item.data,
-                            token,
-                            message: "success",
-                        })
-                    })
-                })
-                .catch((err) => console.log(err))
-        } else {
-            res.json({error: err})
-        }
-    })
-})
-
+// SOCIAL LOGIN
 app.get(
     "/auth/google",
     passport.authenticate("google", {scope: ["email", "profile"]})
@@ -310,6 +273,56 @@ app.post("/api/socialdata", async (req, res) => {
     })
 })
 
+// SIGNUP
+
+app.post("/api/signup", (req, res) => {
+    bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+        if (!err) {
+            const user = new User({
+                email: req.body.email,
+                data: req.body.userData,
+                password: hash,
+            })
+            user.save()
+                .then(() => {
+                    User.findOne({email: req.body.email}).then((item) => {
+                        const token = jwt.sign(
+                            {id: item.id, role: item.role},
+                            secretKey,
+                            {
+                                expiresIn: "1h",
+                            }
+                        )
+                        res.json({
+                            id: item.id,
+                            trades: item.trades,
+                            info: item.data,
+                            token,
+                            message: "success",
+                        })
+                    })
+                })
+                .catch((err) => console.log(err))
+        } else {
+            res.json({error: err})
+        }
+    })
+})
+
+app.post("/api/checkuser", async (req, res) => {
+    User.findOne({email: req.body.email})
+        .then((item) => {
+            if (!item) {
+                res.json({message: "success"})
+            } else {
+                res.json({message: "user already exists"})
+            }
+        })
+        .catch((e) => console.log(e))
+})
+
+// NEW
+
 app.post("/api/newtrade", async (req, res) => {
     const {id, stock, accBefore, accAfter, pl, date, time, action} = req.body
     await User.findByIdAndUpdate(id, {
@@ -328,6 +341,75 @@ app.post("/api/newtrade", async (req, res) => {
     const user = await User.findById(id)
     res.status(200).json({id: user.id, trades: user.trades})
 })
+
+app.post("/api/tradesfile", async (req, res) => {
+    const file = req.body.data
+
+    console.log(file.length)
+
+    file.map(async (trade) => {
+        const stock = trade["Action"].slice(38, 45).split(" ")[0]
+        const accBefore = trade["Balance Before"]
+        const accAfter = trade["Balance After"]
+        const pl = trade["P&L"]
+        const date = trade["Time"].slice(0, 10)
+        const time = trade["Time"].slice(11, 16)
+        const action = trade["Action"].slice(6, 10)
+
+        await User.findByIdAndUpdate(req.body.id, {
+            $push: {
+                trades: {
+                    stock: stock,
+                    accBefore: accBefore,
+                    accAfter: accAfter,
+                    pl: Number(pl),
+                    date: date,
+                    time: time,
+                    action: action,
+                },
+            },
+        })
+    })
+
+    const user = await User.findById(req.body.id)
+    res.status(200).json({id: user.id, trades: user.trades})
+})
+
+app.post("/api/note", async (req, res) => {
+    const update = await User.findByIdAndUpdate(req.body.id, {
+        $push: {
+            notes: {image: req.body.image, text: req.body.text, pinned: false},
+        },
+    })
+    await update.save()
+    const user = await User.findById(req.body.id)
+    res.json({notes: user.notes})
+})
+
+app.patch("/api/noteupdate", async (req, res) => {
+    const func = req.body.func
+    const id = req.body.id
+    const index = req.body.index
+
+    const user = await User.findById(id)
+
+    if (func === "pin") {
+        user.notes[index].pinned = true
+    }
+    if (func === "unpin") {
+        user.notes[index].pinned = false
+    }
+    if (func === "delete") {
+        user.notes.pull(user.notes[index])
+    }
+
+    await user.save()
+
+    const updatedUser = await User.findById(id)
+    res.json({notes: updatedUser.notes})
+})
+
+// USER UPDATES
 
 app.patch("/api/updateaccbalance", async (req, res) => {
     try {
@@ -391,6 +473,16 @@ app.post("/api/changepassword", (req, res) => {
     })
 })
 
+app.post("/api/changeplan", async (req, res) => {
+    await User.findByIdAndUpdate(req.body.id, {
+        $set: {"data.pricing": req.body.plan},
+    })
+    const user = await User.findById(req.body.id)
+    res.json({
+        info: user.data,
+    })
+})
+
 app.patch("/api/deleteuser", async (req, res) => {
     const user = await User.findById(req.body.id)
     bcrypt.compare(req.body.password, user.password, async (err, result) => {
@@ -403,49 +495,14 @@ app.patch("/api/deleteuser", async (req, res) => {
     })
 })
 
-app.post("/api/changeplan", async (req, res) => {
-    await User.findByIdAndUpdate(req.body.id, {
-        $set: {"data.pricing": req.body.plan},
-    })
-    const user = await User.findById(req.body.id)
-    res.json({
-        info: user.data,
-    })
-})
-
-app.post("/api/note", async (req, res) => {
-    const update = await User.findByIdAndUpdate(req.body.id, {
-        $push: {
-            notes: {image: req.body.image, text: req.body.text, pinned: false},
-        },
-    })
-    await update.save()
-    const user = await User.findById(req.body.id)
-    res.json({notes: user.notes})
-})
-
-app.patch("/api/noteupdate", async (req, res) => {
-    const func = req.body.func
-    const id = req.body.id
-    const index = req.body.index
-
-    const user = await User.findById(id)
-
-    if (func === "pin") {
-        user.notes[index].pinned = true
-    }
-    if (func === "unpin") {
-        user.notes[index].pinned = false
-    }
-    if (func === "delete") {
-        user.notes.pull(user.notes[index])
-    }
-
+app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
+    const id = req.params.id
+    const user = await User.findByIdAndUpdate(id, {trades: []})
     await user.save()
-
-    const updatedUser = await User.findById(id)
-    res.json({notes: updatedUser.notes})
+    res.json({message: "works"})
 })
+
+// MESSAGES (CONTACT)
 
 app.post("/api/message", async (req, res) => {
     const message = new Message({
@@ -457,6 +514,12 @@ app.post("/api/message", async (req, res) => {
     await message.save()
     res.json({message: "Message succesfully sent"})
 })
+
+//////////////////////////////////////////////////////////////////////////////////
+
+// ROUTES END
+
+//////////////////////////////////////////////////////////////////////////////////
 
 app.listen(3000, () => {
     console.log("Server is running on port 3000")
