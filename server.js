@@ -11,9 +11,6 @@ const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
 const {default: axios} = require("axios")
 const jwt = require("jsonwebtoken")
-const fs = require("fs")
-const {parse} = require("csv-parse")
-const {log} = require("console")
 
 // HASHING
 const saltRounds = 10
@@ -344,10 +341,9 @@ app.post("/api/newtrade", async (req, res) => {
 
 app.post("/api/tradesfile", async (req, res) => {
     const file = req.body.data
+    const id = req.body.id
 
-    console.log(file.length)
-
-    file.map(async (trade) => {
+    const promises = file.map(async (trade) => {
         const stock = trade["Action"].slice(38, 45).split(" ")[0]
         const accBefore = trade["Balance Before"]
         const accAfter = trade["Balance After"]
@@ -356,7 +352,7 @@ app.post("/api/tradesfile", async (req, res) => {
         const time = trade["Time"].slice(11, 16)
         const action = trade["Action"].slice(6, 10)
 
-        await User.findByIdAndUpdate(req.body.id, {
+        await User.findByIdAndUpdate(id, {
             $push: {
                 trades: {
                     stock: stock,
@@ -371,8 +367,15 @@ app.post("/api/tradesfile", async (req, res) => {
         })
     })
 
-    const user = await User.findById(req.body.id)
-    res.status(200).json({id: user.id, trades: user.trades})
+    try {
+        await Promise.all(promises)
+        const user = await User.findById(id)
+
+        res.status(200).json({id: id, trades: user.trades})
+    } catch (error) {
+        console.log(error)
+        res.status(500).json({message: "error processing trades", error: error})
+    }
 })
 
 app.post("/api/note", async (req, res) => {
@@ -497,6 +500,7 @@ app.patch("/api/deleteuser", async (req, res) => {
 
 app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
     const id = req.params.id
+    console.log(id)
     const user = await User.findByIdAndUpdate(id, {trades: []})
     await user.save()
     res.json({message: "works"})
