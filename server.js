@@ -525,6 +525,13 @@ app.post("/api/message", async (req, res) => {
 
 //////////////////////////////////////////////////////////////////////////////////
 
+// GETTING SCREENERS INFO
+
+app.post("/api/hod-screener-data", (req, res) => {
+    console.log(req.body)
+    res.json({message: "success"})
+})
+
 app.listen(3000, () => {
     console.log("Server is running on port 3000")
 })
