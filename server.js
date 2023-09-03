@@ -11,6 +11,8 @@ const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
 const {default: axios} = require("axios")
 const jwt = require("jsonwebtoken")
+const http = require("http")
+const WebSocket = require("ws").Server
 
 // HASHING
 const saltRounds = 10
@@ -519,19 +521,28 @@ app.post("/api/message", async (req, res) => {
     res.json({message: "Message succesfully sent"})
 })
 
+// GETTING SCREENERS INFO / SENDING INFO
+
+const server = new WebSocket({
+    server: app.listen(3000, () => {
+        console.log("Server is running on port 3000")
+    }),
+})
+let ws = null
+server.on("connection", (socket) => {
+    ws = socket
+    socket.send("Client connected")
+})
+
+app.post("/api/hod-screener-data", async (req, res) => {
+    const stockData = req.body
+    if (ws) ws.send(stockData)
+
+    res.json({message: "success"})
+})
+
 //////////////////////////////////////////////////////////////////////////////////
 
 // ROUTES END
 
 //////////////////////////////////////////////////////////////////////////////////
-
-// GETTING SCREENERS INFO
-
-app.post("/api/hod-screener-data", (req, res) => {
-    console.log(req.body)
-    res.json({message: "success"})
-})
-
-app.listen(3000, () => {
-    console.log("Server is running on port 3000")
-})
