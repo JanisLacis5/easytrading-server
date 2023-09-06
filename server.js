@@ -523,20 +523,27 @@ app.post("/api/message", async (req, res) => {
 
 // GETTING SCREENERS INFO / SENDING INFO
 
+const clients = new Set()
 const server = new WebSocket({
-    server: app.listen(3000, () => {
-        console.log("Server is running on port 3000")
-    }),
+    port: 3001,
 })
-let ws = null
+
 server.on("connection", (socket) => {
-    ws = socket
+    clients.add(socket)
     socket.send("Client connected")
+    socket.on("close", () => {
+        clients.delete(socket)
+    })
 })
 
 app.post("/api/hod-screener-data", async (req, res) => {
     const stockData = req.body
-    if (ws) ws.send(stockData)
+
+    for (const client of clients) {
+        if (client.readyState === 1) {
+            client.send(JSON.stringify(stockData))
+        }
+    }
 
     res.json({message: "success"})
 })
@@ -546,3 +553,7 @@ app.post("/api/hod-screener-data", async (req, res) => {
 // ROUTES END
 
 //////////////////////////////////////////////////////////////////////////////////
+
+app.listen(3000, () => {
+    console.log("Server running on port 3000")
+})
