@@ -523,27 +523,28 @@ app.post("/api/message", async (req, res) => {
 
 // GETTING SCREENERS INFO / SENDING INFO
 
-const clients = new Set()
+let client = null
 const server = new WebSocket({
     port: 3001,
 })
 
 server.on("connection", (socket) => {
-    clients.add(socket)
+    client = socket
     socket.send("Client connected")
     socket.on("close", () => {
-        clients.delete(socket)
+        client = null
     })
 })
 
 app.post("/api/hod-screener-data", async (req, res) => {
     const stockData = req.body
+    console.log(stockData)
 
-    for (const client of clients) {
-        if (client.readyState === 1) {
-            client.send(JSON.stringify(stockData))
-        }
-    }
+    // for (const client of clients) {
+    //     if (client.readyState === 1) {
+    client.send(JSON.stringify(stockData))
+    //     }
+    // }
 
     res.json({message: "success"})
 })
