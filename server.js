@@ -11,7 +11,6 @@ const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
 const {default: axios} = require("axios")
 const jwt = require("jsonwebtoken")
-const http = require("http")
 const WebSocket = require("ws").Server
 
 // HASHING
@@ -345,39 +344,32 @@ app.post("/api/tradesfile", async (req, res) => {
     const file = req.body.data
     const id = req.body.id
 
-    const promises = file.map(async (trade) => {
-        const stock = trade["Action"].slice(38, 45).split(" ")[0]
-        const accBefore = trade["Balance Before"]
-        const accAfter = trade["Balance After"]
-        const pl = trade["P&L"]
-        const date = trade["Time"].slice(0, 10)
-        const time = trade["Time"].slice(11, 16)
-        const action = trade["Action"].slice(6, 10)
+    const addTrades = async (trades) => {
+        return Promise.all(
+            trades.map(async (trade) => {
+                const {stock, accAfter, accBefore, pl, date, time, action} =
+                    trade
 
-        await User.findByIdAndUpdate(id, {
-            $push: {
-                trades: {
-                    stock: stock,
-                    accBefore: accBefore,
-                    accAfter: accAfter,
-                    pl: Number(pl),
-                    date: date,
-                    time: time,
-                    action: action,
-                },
-            },
-        })
-    })
-
-    try {
-        await Promise.all(promises)
-        const user = await User.findById(id)
-
-        res.status(200).json({id: id, trades: user.trades})
-    } catch (error) {
-        console.log(error)
-        res.status(500).json({message: "error processing trades", error: error})
+                await User.findByIdAndUpdate(id, {
+                    $push: {
+                        trades: {
+                            stock,
+                            accBefore,
+                            accAfter,
+                            pl,
+                            date,
+                            time,
+                            action,
+                        },
+                    },
+                })
+            })
+        )
     }
+
+    await addTrades(file)
+    const user = await User.findById(id)
+    res.json({trades: user.trades})
 })
 
 app.post("/api/note", async (req, res) => {
@@ -502,7 +494,6 @@ app.patch("/api/deleteuser", async (req, res) => {
 
 app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
     const id = req.params.id
-    console.log(id)
     const user = await User.findByIdAndUpdate(id, {trades: []})
     await user.save()
     res.json({message: "works"})
@@ -531,12 +522,14 @@ const server = new WebSocket({
 let ws = null
 server.on("connection", (socket) => {
     ws = socket
-    socket.send("Client connected")
+    console.log("client connected")
+    ws.send("Client connected")
 })
 
 app.post("/api/hod-screener-data", async (req, res) => {
     const stockData = req.body
-    if (ws) ws.send(stockData)
+    console.log(stockData)
+    if (ws) ws.send(JSON.stringify(stockData))
 
     res.json({message: "success"})
 })
