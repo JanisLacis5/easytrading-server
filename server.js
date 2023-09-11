@@ -344,6 +344,8 @@ app.post("/api/tradesfile", async (req, res) => {
     const file = req.body.data
     const id = req.body.id
 
+    console.log(file)
+
     const addTrades = async (trades) => {
         return Promise.all(
             trades.map(async (trade) => {
