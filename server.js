@@ -65,6 +65,7 @@ const userSchema = new mongoose.Schema({
     password: String,
     trades: Array,
     data: Object,
+    layouts: Array,
     notes: [
         {
             pinned: Boolean,
@@ -219,6 +220,7 @@ app.post("/api/login", (req, res) => {
                                 info: item.data,
                                 notes: item.notes,
                                 token,
+                                layouts: item.layouts,
                             })
                         } else res.json({message: "incorrect password"})
                     }
@@ -408,6 +410,20 @@ app.patch("/api/noteupdate", async (req, res) => {
     res.json({notes: updatedUser.notes})
 })
 
+app.post("/api/new-layout", async (req, res) => {
+    const layout = Object.values(req.body.layout)
+    const id = req.body.id
+
+    await User.findByIdAndUpdate(req.body.id, {
+        $push: {
+            layouts: layout,
+        },
+    })
+    const user = await User.findById(id)
+
+    res.json({layouts: user.layouts, message: "success"})
+})
+
 // USER UPDATES
 
 app.patch("/api/updateaccbalance", async (req, res) => {
@@ -522,13 +538,16 @@ const server = new WebSocket({
 })
 
 server.on("connection", (socket) => {
-    ws = socket
+    client = socket
     socket.send("Client connected")
+    socket.on("close", () => {
+        client = null
+    })
 })
 
 app.post("/api/hod-screener-data", async (req, res) => {
     const stockData = req.body
-    if (ws) ws.send(stockData)
+    client.send(JSON.stringify(stockData))
 
     res.json({message: "success"})
 })
