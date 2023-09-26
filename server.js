@@ -232,7 +232,9 @@ app.post("/api/login", (req, res) => {
     }
 })
 
+//////////////////////////////////////////////////////////////////////////////////
 // SOCIAL LOGIN
+
 app.get(
     "/auth/google",
     passport.authenticate("google", {scope: ["email", "profile"]})
@@ -273,6 +275,7 @@ app.post("/api/socialdata", async (req, res) => {
     })
 })
 
+//////////////////////////////////////////////////////////////////////////////////
 // SIGNUP
 
 app.post("/api/signup", (req, res) => {
@@ -321,6 +324,7 @@ app.post("/api/checkuser", async (req, res) => {
         .catch((e) => console.log(e))
 })
 
+//////////////////////////////////////////////////////////////////////////////////
 // NEW
 
 app.post("/api/newtrade", async (req, res) => {
@@ -411,7 +415,7 @@ app.patch("/api/noteupdate", async (req, res) => {
 })
 
 app.post("/api/new-layout", async (req, res) => {
-    const layout = Object.values(req.body.layout)
+    const layout = req.body.layout
     const id = req.body.id
 
     await User.findByIdAndUpdate(req.body.id, {
@@ -424,6 +428,21 @@ app.post("/api/new-layout", async (req, res) => {
     res.json({layouts: user.layouts, message: "success"})
 })
 
+app.post("/api/edit-layout", async (req, res) => {
+    const layoutIndex = req.body.layoutIndex
+    const layout = req.body.layout
+    const id = req.body.id
+
+    const user = await User.findById(id)
+
+    let userLayout = user.layouts
+    userLayout[layoutIndex] = layout
+
+    await user.save()
+    res.json({layouts: userLayout, message: "success"})
+})
+
+//////////////////////////////////////////////////////////////////////////////////
 // USER UPDATES
 
 app.patch("/api/updateaccbalance", async (req, res) => {
@@ -517,6 +536,7 @@ app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
     res.json({message: "works"})
 })
 
+//////////////////////////////////////////////////////////////////////////////////
 // MESSAGES (CONTACT)
 
 app.post("/api/message", async (req, res) => {
@@ -530,6 +550,7 @@ app.post("/api/message", async (req, res) => {
     res.json({message: "Message succesfully sent"})
 })
 
+///////////////////////////////////////////////////////////////////////////////////
 // GETTING SCREENERS INFO / SENDING INFO
 
 let client = null
