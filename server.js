@@ -414,34 +414,6 @@ app.patch("/api/noteupdate", async (req, res) => {
     res.json({notes: updatedUser.notes})
 })
 
-app.post("/api/new-layout", async (req, res) => {
-    const layout = req.body.layout
-    const id = req.body.id
-
-    await User.findByIdAndUpdate(req.body.id, {
-        $push: {
-            layouts: layout,
-        },
-    })
-    const user = await User.findById(id)
-
-    res.json({layouts: user.layouts, message: "success"})
-})
-
-app.post("/api/edit-layout", async (req, res) => {
-    const layoutIndex = req.body.layoutIndex
-    const layout = req.body.layout
-    const id = req.body.id
-
-    const user = await User.findById(id)
-
-    let userLayout = user.layouts
-    userLayout[layoutIndex] = layout
-
-    await user.save()
-    res.json({layouts: userLayout, message: "success"})
-})
-
 //////////////////////////////////////////////////////////////////////////////////
 // USER UPDATES
 
@@ -571,6 +543,51 @@ app.post("/api/hod-screener-data", async (req, res) => {
     client.send(JSON.stringify(stockData))
 
     res.json({message: "success"})
+})
+
+//////////////////////////////////////////////////////////////////////////////////
+// SCREENER LAYOUTS
+
+app.post("/api/new-layout", async (req, res) => {
+    const layout = req.body.layout
+    const id = req.body.id
+
+    await User.findByIdAndUpdate(req.body.id, {
+        $push: {
+            layouts: layout,
+        },
+    })
+    const user = await User.findById(id)
+
+    res.json({layouts: user.layouts})
+})
+
+app.post("/api/edit-layout", async (req, res) => {
+    const layoutIndex = req.body.layoutIndex
+    const layout = req.body.layout
+    const id = req.body.id
+
+    const user = await User.findById(id)
+
+    let userLayout = user.layouts
+    userLayout[layoutIndex] = layout
+
+    await user.save()
+    res.json({layouts: userLayout})
+})
+
+app.put("/api/delete-layout", async (req, res) => {
+    const id = req.body.id
+    const layoutIndex = req.body.index
+
+    const user = await User.findById(id)
+
+    const updatedUserLayouts = user.layouts.filter(
+        (layout, index) => index !== layoutIndex
+    )
+    user.layouts = updatedUserLayouts
+    await user.save()
+    res.json({layouts: user.layouts})
 })
 
 //////////////////////////////////////////////////////////////////////////////////
