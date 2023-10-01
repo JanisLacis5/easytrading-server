@@ -39,6 +39,9 @@ const userConn = mongoose.createConnection("mongodb://0.0.0.0:27017/tradingDB")
 const messageConn = mongoose.createConnection(
     "mongodb://0.0.0.0:27017/tradingMessageDB"
 )
+const chatroomConn = mongoose.createConnection(
+    "mongodb://0.0.0.0:27017/chatroomDB"
+)
 
 // COOKIES / SESSIONS
 app.use(
@@ -86,6 +89,15 @@ const messageSchema = new mongoose.Schema({
 })
 
 const Message = messageConn.model("Message", messageSchema)
+
+const chatroomSchema = mongoose.Schema({
+    name: String,
+    admins: {
+        userId: String,
+    },
+})
+
+const Chatroom = messageConn.model("Chatroom", chatroomSchema)
 
 // PASSPORT SOCIAL LOGIN STRATEGIES
 passport.use(
