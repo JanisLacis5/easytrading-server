@@ -11,6 +11,7 @@ const findOrCreate = require("mongoose-findorcreate")
 const session = require("express-session")
 const {default: axios} = require("axios")
 const jwt = require("jsonwebtoken")
+const e = require("express")
 const WebSocket = require("ws").Server
 
 // HASHING
@@ -191,56 +192,64 @@ app.post("/api/login", (req, res) => {
     const email = req.body.email
     const id = req.body.id
     if (!email) {
-        User.findOne({userId: id}).then((item) => {
-            if (item) {
-                const token = jwt.sign(
-                    {id: item.id, role: item.role},
-                    secretKey,
-                    {
-                        expiresIn: "1h",
-                    }
-                )
-                res.json({
-                    id: item.id,
-                    trades: item.trades,
-                    info: item.data,
-                    notes: item.notes,
-                    token: token,
-                })
-            } else {
-                res.json({message: "social user does not exist"})
-            }
-        })
+        try {
+            User.findOne({userId: id}).then((item) => {
+                if (item) {
+                    const token = jwt.sign(
+                        {id: item.id, role: item.role},
+                        secretKey,
+                        {
+                            expiresIn: "1h",
+                        }
+                    )
+                    res.json({
+                        id: item.id,
+                        trades: item.trades,
+                        info: item.data,
+                        notes: item.notes,
+                        token: token,
+                    })
+                } else {
+                    res.json({message: "social user does not exist"})
+                }
+            })
+        } catch (error) {
+            console.log(error)
+        }
     } else {
-        User.findOne({email: email}).then((item) => {
-            if (item) {
-                bcrypt.compare(
-                    req.body.password,
-                    item.password,
-                    function (err, result) {
-                        if (result) {
-                            const token = jwt.sign(
-                                {id: item.id, role: item.role},
-                                secretKey,
-                                {
-                                    expiresIn: "1h",
-                                }
-                            )
-                            res.json({
-                                id: item.id,
-                                trades: item.trades,
-                                info: item.data,
-                                notes: item.notes,
-                                token,
-                                layouts: item.layouts,
-                            })
-                        } else res.json({message: "incorrect password"})
-                    }
-                )
-            } else {
-                res.json({message: "user does not exist"})
-            }
-        })
+        try {
+            User.findOne({email: email}).then((item) => {
+                if (item) {
+                    bcrypt.compare(
+                        req.body.password,
+                        item.password,
+                        function (err, result) {
+                            if (result) {
+                                const token = jwt.sign(
+                                    {id: item.id, role: item.role},
+                                    secretKey,
+                                    {
+                                        expiresIn: "1h",
+                                    }
+                                )
+                                res.json({
+                                    id: item.id,
+                                    trades: item.trades,
+                                    info: item.data,
+                                    notes: item.notes,
+                                    token,
+                                    layouts: item.layouts,
+                                })
+                            } else res.json({message: "incorrect password"})
+                        }
+                    )
+                } else {
+                    res.json({message: "user does not exist"})
+                }
+            })
+        } catch (error) {
+            console.log(error)
+        }
     }
 })
 
@@ -291,37 +300,41 @@ app.post("/api/socialdata", async (req, res) => {
 // SIGNUP
 
 app.post("/api/signup", (req, res) => {
-    bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
-        if (!err) {
-            const user = new User({
-                email: req.body.email,
-                data: req.body.userData,
-                password: hash,
-            })
-            user.save()
-                .then(() => {
-                    User.findOne({email: req.body.email}).then((item) => {
-                        const token = jwt.sign(
-                            {id: item.id, role: item.role},
-                            secretKey,
-                            {
-                                expiresIn: "1h",
-                            }
-                        )
-                        res.json({
-                            id: item.id,
-                            trades: item.trades,
-                            info: item.data,
-                            token,
-                            message: "success",
+    try {
+        bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+            if (!err) {
+                const user = new User({
+                    email: req.body.email,
+                    data: req.body.userData,
+                    password: hash,
+                })
+                user.save()
+                    .then(() => {
+                        User.findOne({email: req.body.email}).then((item) => {
+                            const token = jwt.sign(
+                                {id: item.id, role: item.role},
+                                secretKey,
+                                {
+                                    expiresIn: "1h",
+                                }
+                            )
+                            res.json({
+                                id: item.id,
+                                trades: item.trades,
+                                info: item.data,
+                                token,
+                                message: "success",
+                            })
                         })
                     })
-                })
-                .catch((err) => console.log(err))
-        } else {
-            res.json({error: err})
-        }
-    })
+                    .catch((err) => console.log(err))
+            } else {
+                res.json({error: err})
+            }
+        })
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.post("/api/checkuser", async (req, res) => {
@@ -341,66 +354,80 @@ app.post("/api/checkuser", async (req, res) => {
 
 app.post("/api/newtrade", async (req, res) => {
     const {id, stock, accBefore, accAfter, pl, date, time, action} = req.body
-    await User.findByIdAndUpdate(id, {
-        $push: {
-            trades: {
-                stock: stock,
-                accBefore: accBefore,
-                accAfter: accAfter,
-                pl: pl,
-                date: date,
-                time: time,
-                action: action,
+    try {
+        await User.findByIdAndUpdate(id, {
+            $push: {
+                trades: {
+                    stock: stock,
+                    accBefore: accBefore,
+                    accAfter: accAfter,
+                    pl: pl,
+                    date: date,
+                    time: time,
+                    action: action,
+                },
             },
-        },
-    })
-    const user = await User.findById(id)
-    res.status(200).json({id: user.id, trades: user.trades})
+        })
+        const user = await User.findById(id)
+        res.status(200).json({id: user.id, trades: user.trades})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.post("/api/tradesfile", async (req, res) => {
     const file = req.body.data
     const id = req.body.id
 
-    console.log(file)
+    try {
+        const addTrades = async (trades) => {
+            return Promise.all(
+                trades.map(async (trade) => {
+                    const {stock, accAfter, accBefore, pl, date, time, action} =
+                        trade
 
-    const addTrades = async (trades) => {
-        return Promise.all(
-            trades.map(async (trade) => {
-                const {stock, accAfter, accBefore, pl, date, time, action} =
-                    trade
-
-                await User.findByIdAndUpdate(id, {
-                    $push: {
-                        trades: {
-                            stock,
-                            accBefore,
-                            accAfter,
-                            pl,
-                            date,
-                            time,
-                            action,
+                    await User.findByIdAndUpdate(id, {
+                        $push: {
+                            trades: {
+                                stock,
+                                accBefore,
+                                accAfter,
+                                pl,
+                                date,
+                                time,
+                                action,
+                            },
                         },
-                    },
+                    })
                 })
-            })
-        )
-    }
+            )
+        }
 
-    await addTrades(file)
-    const user = await User.findById(id)
-    res.json({trades: user.trades})
+        await addTrades(file)
+        const user = await User.findById(id)
+        res.json({trades: user.trades})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.post("/api/note", async (req, res) => {
-    const update = await User.findByIdAndUpdate(req.body.id, {
-        $push: {
-            notes: {image: req.body.image, text: req.body.text, pinned: false},
-        },
-    })
-    await update.save()
-    const user = await User.findById(req.body.id)
-    res.json({notes: user.notes})
+    try {
+        const update = await User.findByIdAndUpdate(req.body.id, {
+            $push: {
+                notes: {
+                    image: req.body.image,
+                    text: req.body.text,
+                    pinned: false,
+                },
+            },
+        })
+        await update.save()
+        const user = await User.findById(req.body.id)
+        res.json({notes: user.notes})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.patch("/api/noteupdate", async (req, res) => {
@@ -408,22 +435,26 @@ app.patch("/api/noteupdate", async (req, res) => {
     const id = req.body.id
     const index = req.body.index
 
-    const user = await User.findById(id)
+    try {
+        const user = await User.findById(id)
 
-    if (func === "pin") {
-        user.notes[index].pinned = true
-    }
-    if (func === "unpin") {
-        user.notes[index].pinned = false
-    }
-    if (func === "delete") {
-        user.notes.pull(user.notes[index])
-    }
+        if (func === "pin") {
+            user.notes[index].pinned = true
+        }
+        if (func === "unpin") {
+            user.notes[index].pinned = false
+        }
+        if (func === "delete") {
+            user.notes.pull(user.notes[index])
+        }
 
-    await user.save()
+        await user.save()
 
-    const updatedUser = await User.findById(id)
-    res.json({notes: updatedUser.notes})
+        const updatedUser = await User.findById(id)
+        res.json({notes: updatedUser.notes})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -446,92 +477,119 @@ app.patch("/api/updateaccbalance", async (req, res) => {
 
 app.post("/api/updateuser", async (req, res) => {
     const {id, username, email, balance, image} = req.body
+    try {
+        const user = await User.findById(id)
 
-    const user = await User.findById(id)
+        const newUsername = username ? username : user.data.username
+        const newEmail = email ? email : user.email
+        const newBalance = balance ? balance : user.data.account
+        const newImage = image ? image : user.data.iamge
 
-    const newUsername = username ? username : user.data.username
-    const newEmail = email ? email : user.email
-    const newBalance = balance ? balance : user.data.account
-    const newImage = image ? image : user.data.iamge
+        const updatedUser = await User.findByIdAndUpdate(id, {
+            $set: {
+                "data.username": newUsername,
+                email: newEmail,
+                "data.account": newBalance,
+                "data.email": newEmail,
+                "data.image": newImage,
+            },
+        })
 
-    const updatedUser = await User.findByIdAndUpdate(id, {
-        $set: {
-            "data.username": newUsername,
-            email: newEmail,
-            "data.account": newBalance,
-            "data.email": newEmail,
-            "data.image": newImage,
-        },
-    })
+        await updatedUser.save()
 
-    await updatedUser.save()
+        const response = await User.findById(id)
 
-    const response = await User.findById(id)
-
-    res.json({
-        message: "success",
-        info: response.data,
-    })
+        res.json({
+            message: "success",
+            info: response.data,
+        })
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.post("/api/changepassword", (req, res) => {
-    bcrypt.hash(req.body.password, saltRounds, async (err, hash) => {
-        if (!err) {
-            const user = await User.findByIdAndUpdate(req.body.id, {
-                $set: {password: hash},
-            })
-            await user.save()
+    try {
+        bcrypt.hash(req.body.password, saltRounds, async (err, hash) => {
+            if (!err) {
+                const user = await User.findByIdAndUpdate(req.body.id, {
+                    $set: {password: hash},
+                })
+                await user.save()
 
-            res.json({
-                message: "success",
-            })
-        } else {
-            res.json({error: err})
-        }
-    })
+                res.json({
+                    message: "success",
+                })
+            } else {
+                res.json({error: err})
+            }
+        })
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.post("/api/changeplan", async (req, res) => {
-    await User.findByIdAndUpdate(req.body.id, {
-        $set: {"data.pricing": req.body.plan},
-    })
-    const user = await User.findById(req.body.id)
-    res.json({
-        info: user.data,
-    })
+    try {
+        await User.findByIdAndUpdate(req.body.id, {
+            $set: {"data.pricing": req.body.plan},
+        })
+        const user = await User.findById(req.body.id)
+        res.json({
+            info: user.data,
+        })
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.patch("/api/deleteuser", async (req, res) => {
-    const user = await User.findById(req.body.id)
-    bcrypt.compare(req.body.password, user.password, async (err, result) => {
-        if (result) {
-            await User.findByIdAndRemove(req.body.id)
-            res.json({
-                message: "success",
-            })
-        } else res.json({message: "incorrect password"})
-    })
+    try {
+        const user = await User.findById(req.body.id)
+        bcrypt.compare(
+            req.body.password,
+            user.password,
+            async (err, result) => {
+                if (result) {
+                    await User.findByIdAndRemove(req.body.id)
+                    res.json({
+                        message: "success",
+                    })
+                } else res.json({message: "incorrect password"})
+            }
+        )
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
-    const id = req.params.id
-    const user = await User.findByIdAndUpdate(id, {trades: []})
-    await user.save()
-    res.json({message: "works"})
+    try {
+        const id = req.params.id
+        const user = await User.findByIdAndUpdate(id, {trades: []})
+        await user.save()
+        res.json({message: "works"})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 //////////////////////////////////////////////////////////////////////////////////
 // MESSAGES (CONTACT)
 
 app.post("/api/message", async (req, res) => {
-    const message = new Message({
-        userId: req.body.id,
-        email: req.body.email,
-        question: req.body.question,
-        message: req.body.message,
-    })
-    await message.save()
-    res.json({message: "Message succesfully sent"})
+    try {
+        const message = new Message({
+            userId: req.body.id,
+            email: req.body.email,
+            question: req.body.question,
+            message: req.body.message,
+        })
+        await message.save()
+        res.json({message: "Message succesfully sent"})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 ///////////////////////////////////////////////////////////////////////////////////
@@ -563,15 +621,18 @@ app.post("/api/hod-screener-data", async (req, res) => {
 app.post("/api/new-layout", async (req, res) => {
     const layout = req.body.layout
     const id = req.body.id
+    try {
+        await User.findByIdAndUpdate(req.body.id, {
+            $push: {
+                layouts: layout,
+            },
+        })
+        const user = await User.findById(id)
 
-    await User.findByIdAndUpdate(req.body.id, {
-        $push: {
-            layouts: layout,
-        },
-    })
-    const user = await User.findById(id)
-
-    res.json({layouts: user.layouts})
+        res.json({layouts: user.layouts})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.post("/api/edit-layout", async (req, res) => {
@@ -579,27 +640,34 @@ app.post("/api/edit-layout", async (req, res) => {
     const layout = req.body.layout
     const id = req.body.id
 
-    const user = await User.findById(id)
+    try {
+        const user = await User.findById(id)
 
-    let userLayout = user.layouts
-    userLayout[layoutIndex] = layout
+        let userLayout = user.layouts
+        userLayout[layoutIndex] = layout
 
-    await user.save()
-    res.json({layouts: userLayout})
+        await user.save()
+        res.json({layouts: userLayout})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 app.put("/api/delete-layout", async (req, res) => {
     const id = req.body.id
     const layoutIndex = req.body.index
+    try {
+        const user = await User.findById(id)
 
-    const user = await User.findById(id)
-
-    const updatedUserLayouts = user.layouts.filter(
-        (layout, index) => index !== layoutIndex
-    )
-    user.layouts = updatedUserLayouts
-    await user.save()
-    res.json({layouts: user.layouts})
+        const updatedUserLayouts = user.layouts.filter(
+            (_, index) => index !== layoutIndex
+        )
+        user.layouts = updatedUserLayouts
+        await user.save()
+        res.json({layouts: user.layouts})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 //////////////////////////////////////////////////////////////////////////////////
