@@ -530,11 +530,12 @@ app.post("/api/changepassword", (req, res) => {
 })
 
 app.post("/api/changeplan", async (req, res) => {
+    const id = req.body.id
+    const pricingPlan = req.body.plan
     try {
-        await User.findByIdAndUpdate(req.body.id, {
-            $set: {"data.pricing": req.body.plan},
-        })
-        const user = await User.findById(req.body.id)
+        const user = await User.findById(id)
+        user.data.pricing = pricingPlan
+        await user.save()
         res.json({
             info: user.data,
         })
