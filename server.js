@@ -188,31 +188,31 @@ const authenticateJWT = (req, res, next) => {
 //////////////////////////////////////////////////////////////////////////////////
 
 // LOGIN
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
     const email = req.body.email
     const id = req.body.id
+
     if (!email) {
         try {
-            User.findOne({userId: id}).then((item) => {
-                if (item) {
-                    const token = jwt.sign(
-                        {id: item.id, role: item.role},
-                        secretKey,
-                        {
-                            expiresIn: "1h",
-                        }
-                    )
-                    res.json({
-                        id: item.id,
-                        trades: item.trades,
-                        info: item.data,
-                        notes: item.notes,
-                        token: token,
-                    })
-                } else {
-                    res.json({message: "social user does not exist"})
-                }
-            })
+            const user = await User.findById(id)
+            if (user) {
+                const token = jwt.sign(
+                    {id: user.id, role: user.role},
+                    secretKey,
+                    {
+                        expiresIn: "1h",
+                    }
+                )
+                res.json({
+                    id: user.id,
+                    trades: user.trades,
+                    info: user.data,
+                    notes: user.notes,
+                    token: token,
+                })
+            } else {
+                res.json({message: "social user does not exist"})
+            }
         } catch (error) {
             console.log(error)
         }
@@ -532,6 +532,7 @@ app.post("/api/changepassword", (req, res) => {
 app.post("/api/changeplan", async (req, res) => {
     const id = req.body.id
     const pricingPlan = req.body.plan
+
     try {
         const user = await User.findById(id)
         user.data.pricing = pricingPlan
