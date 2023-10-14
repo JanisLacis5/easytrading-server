@@ -13,6 +13,7 @@ const {default: axios} = require("axios")
 const jwt = require("jsonwebtoken")
 const e = require("express")
 const WebSocket = require("ws").Server
+const objectId = mongoose.Types.ObjectId
 
 // HASHING
 const saltRounds = 10
