@@ -27,6 +27,6 @@
         "passport-google-oauth20": "^2.0.0",
         "passport-twitter": "^1.0.4",
         "request": "^2.88.2",
-        "ws": "^8.13.0"
+        "ws": "^8.14.2"
     }
 }

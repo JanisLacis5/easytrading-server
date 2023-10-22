@@ -64,6 +64,7 @@ passport.deserializeUser(function (user, done) {
 })
 
 // MONGOSSE
+
 const userSchema = new mongoose.Schema({
     userId: String,
     email: String,
@@ -78,6 +79,7 @@ const userSchema = new mongoose.Schema({
             text: String,
         },
     ],
+    messages: {friendId: []},
 })
 userSchema.plugin(findOrCreate)
 
@@ -671,6 +673,57 @@ app.put("/api/delete-layout", async (req, res) => {
     } catch (error) {
         console.log(error)
     }
+})
+
+//////////////////////////////////////////////////////////////////////////////////
+// CHATROOM SERVER
+
+// MESSAGE SOCKET
+const sockets = new Map()
+const chatroomServer = new WebSocket({
+    port: 3002,
+})
+chatroomServer.on("connection", (ws) => {
+    ws.on("error", console.error)
+
+    ws.on("message", async (data) => {
+        if (typeof JSON.parse(data).message === "undefined") {
+            const {id} = JSON.parse(data)
+            sockets.set(id, ws)
+        } else {
+            const {senderId, recieverId, message} = JSON.parse(data)
+
+            const sender = await User.findById(senderId)
+            sender.messages[recieverId].push({
+                sender: true,
+                time: message.time,
+                date: message.date,
+                text: message.text,
+            })
+            await sender.save()
+
+            const reciever = await User.findById(recieverId)
+            reciever.messages[senderId].push({
+                sender: false,
+                time: message.time,
+                date: message.date,
+                text: message.text,
+            })
+            await reciever.save()
+        }
+    })
+})
+
+// ADD FRIEND SOCKET
+const friendServer = new WebSocket({
+    port: 3003,
+})
+friendServer.on("connection", (ws) => {
+    ws.on("error", console.error)
+
+    ws.on("message", (data) => {
+        const {sender, friend} = JSON.parse(data)
+    })
 })
 
 //////////////////////////////////////////////////////////////////////////////////
