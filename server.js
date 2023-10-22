@@ -79,7 +79,17 @@ const userSchema = new mongoose.Schema({
             text: String,
         },
     ],
-    messages: {friendId: []},
+    // messages: {
+    //     type: Object,
+    //     of: [
+    //         {
+    //             date: Date,
+    //             time: String,
+    //             text: String,
+    //         },
+    //     ],
+    // },
+    messages: Object,
 })
 userSchema.plugin(findOrCreate)
 
@@ -691,25 +701,58 @@ chatroomServer.on("connection", (ws) => {
             const {id} = JSON.parse(data)
             sockets.set(id, ws)
         } else {
-            const {senderId, recieverId, message} = JSON.parse(data)
+            const {senderId, message} = JSON.parse(data)
+            const recieverId = "janiselacis"
 
-            const sender = await User.findById(senderId)
-            sender.messages[recieverId].push({
-                sender: true,
-                time: message.time,
-                date: message.date,
-                text: message.text,
-            })
-            await sender.save()
+            try {
+                const sender = await User.findById(
+                    senderId.slice(1, senderId.length - 1)
+                )
 
-            const reciever = await User.findById(recieverId)
-            reciever.messages[senderId].push({
-                sender: false,
-                time: message.time,
-                date: message.date,
-                text: message.text,
-            })
-            await reciever.save()
+                if (typeof sender.messages[recieverId] === "undefined") {
+                    sender.messages = {
+                        ...sender.messages,
+                        [recieverId]: [],
+                    }
+                }
+
+                sender.messages = {
+                    ...sender.messages,
+                    [recieverId]: [
+                        ...sender.messages[recieverId],
+                        {
+                            sender: true,
+                            time: message.time,
+                            date: message.date,
+                            text: message.text,
+                        },
+                    ],
+                }
+                await sender.save()
+
+                const temp = await User.findById(
+                    senderId.slice(1, senderId.length - 1)
+                )
+                console.log(temp.messages)
+            } catch (e) {
+                console.log("line 729")
+                console.log(e)
+            }
+
+            // try {
+            //     const reciever = await User.findById(
+            //         recieverId.slice(1, recieverId.length - 1)
+            //     )
+            //     reciever.messages[senderId].push({
+            //         sender: false,
+            //         time: message.time,
+            //         date: message.date,
+            //         text: message.text,
+            //     })
+            //     await reciever.save()
+            // } catch (e) {
+            //     console.log(e)
+            // }
         }
     })
 })
