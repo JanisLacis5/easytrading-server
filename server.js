@@ -79,17 +79,8 @@ const userSchema = new mongoose.Schema({
             text: String,
         },
     ],
-    // messages: {
-    //     type: Object,
-    //     of: [
-    //         {
-    //             date: Date,
-    //             time: String,
-    //             text: String,
-    //         },
-    //     ],
-    // },
     messages: Object,
+    friends: Array,
 })
 userSchema.plugin(findOrCreate)
 
@@ -729,11 +720,6 @@ chatroomServer.on("connection", (ws) => {
                     ],
                 }
                 await sender.save()
-
-                const temp = await User.findById(
-                    senderId.slice(1, senderId.length - 1)
-                )
-                console.log(temp.messages)
             } catch (e) {
                 console.log("line 729")
                 console.log(e)
@@ -768,6 +754,8 @@ friendServer.on("connection", (ws) => {
         const {sender, friend} = JSON.parse(data)
     })
 })
+
+// TODO: make add friend funcionality
 
 //////////////////////////////////////////////////////////////////////////////////
 
