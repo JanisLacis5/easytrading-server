@@ -215,6 +215,9 @@ app.post('/api/login', async (req, res) => {
                     info: user.data,
                     notes: user.notes,
                     token: token,
+                    sentFriendRequests: user.sentFriendRequests,
+                    recievedFriendRequests: user.recievedFriendRequests,
+                    messages: user.messages,
                 })
             } else {
                 res.json({ message: 'social user does not exist' })
@@ -302,6 +305,9 @@ app.post('/api/socialdata', async (req, res) => {
         info: data.info,
         token: data.token,
         notes: data.notes,
+        messages: data.messages,
+        recievedFriendRequests: data.recievedFriendRequests,
+        sentFriendRequests: data.sentFriendRequests,
     })
 })
 
@@ -797,7 +803,8 @@ sendFriendReq.on('connection', (ws) => {
     ws.on('error', console.error)
 
     ws.on('message', async (data) => {
-        const { senderEmail, recieverEmail } = JSON.parse(data)
+        const { senderEmail } = JSON.parse(data)
+        const recieverEmail = 'janislaics06@gmail.com'
         try {
             const sender = await User.findOne({ email: senderEmail })
             if (typeof sender.sentFriendRequests === 'undefined') {
@@ -814,6 +821,14 @@ sendFriendReq.on('connection', (ws) => {
 
         try {
             const reciever = await User.findOne({ email: recieverEmail })
+            if (reciever === null) {
+                ws.send(
+                    JSON.stringify({
+                        status: 'error',
+                        message: 'user does not exist',
+                    })
+                )
+            }
             if (typeof reciever.recievedFriendRequests === 'undefined') {
                 reciever.recievedFriendRequests = []
             }
