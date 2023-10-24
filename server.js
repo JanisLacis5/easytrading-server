@@ -687,18 +687,34 @@ app.put("/api/delete-layout", async (req, res) => {
 //////////////////////////////////////////////////////////////////////////////////
 // CHATROOM SERVER
 
+// NOTIFICATION SOCKET
+
+const notiSockets = new Map()
+const notiServer = new WebSocket({
+    port: 5000,
+})
+notiServer.on("connection", (ws) => {
+    ws.on("error", console.error)
+
+    ws.on("message", async (data) => {
+        const {id} = JSON.parse(data)
+        notiSockets.set(id, ws)
+    })
+})
+
 // MESSAGE SOCKET
-const sockets = new Map()
+const messageSockets = new Map()
 const chatroomServer = new WebSocket({
     port: 3002,
 })
 chatroomServer.on("connection", (ws) => {
+    console.log("noti socket connected")
     ws.on("error", console.error)
 
     ws.on("message", async (data) => {
         if (typeof JSON.parse(data).message === "undefined") {
             const {id} = JSON.parse(data)
-            sockets.set(id, ws)
+            messageSockets.set(id, ws)
         } else {
             const {senderId, message} = JSON.parse(data)
             const recieverId = "janiselacis"
@@ -786,6 +802,7 @@ friendServer.on("connection", (ws) => {
 })
 
 // SEND FRIEND REQUEST
+const reqSockets = new Map()
 const sendFriendReq = new WebSocket({
     port: 3004,
 })
@@ -793,64 +810,94 @@ sendFriendReq.on("connection", (ws) => {
     ws.on("error", console.error)
 
     ws.on("message", async (data) => {
-        const {senderEmail, recieverEmail} = JSON.parse(data)
+        if (typeof JSON.parse(data).id !== "undefined") {
+            reqSockets.set(JSON.parse(data).id, ws)
+        } else {
+            const {senderEmail, recieverEmail} = JSON.parse(data)
 
-        let isReciever = true
-        let isSentAlready = null
+            let isReciever = true
+            let isSentAlready = null
+            let hasRecievedAlready = null
 
-        try {
-            const reciever = await User.findOne({email: recieverEmail})
-            if (reciever === null) {
-                isReciever = false
-                ws.send(
-                    JSON.stringify({
-                        status: "error",
-                        message: "user does not exist",
-                    })
-                )
-            }
-
-            if (typeof reciever.recievedFriendRequests === "undefined") {
-                reciever.recievedFriendRequests = []
-            }
-
-            isSentAlready = reciever.recievedFriendRequests.find(
-                (em) => em === senderEmail
-            )
-
-            if (isSentAlready) {
-                ws.send(
-                    JSON.stringify({
-                        status: "error",
-                        message: `you have already sent friend request to user with email: ${recieverEmail}`,
-                    })
-                )
-            } else {
-                reciever.recievedFriendRequests = [
-                    ...reciever.recievedFriendRequests,
-                    senderEmail,
-                ]
-                await reciever.save()
-            }
-        } catch (e) {
-            console.log(e)
-        }
-
-        try {
-            if (isReciever && !isSentAlready) {
+            try {
+                const reciever = await User.findOne({email: recieverEmail})
                 const sender = await User.findOne({email: senderEmail})
-                if (typeof sender.sentFriendRequests === "undefined") {
-                    sender.sentFriendRequests = []
+
+                if (reciever === null) {
+                    isReciever = false
+                    ws.send(
+                        JSON.stringify({
+                            status: "error",
+                            message: "user does not exist",
+                        })
+                    )
                 }
-                sender.sentFriendRequests = [
-                    ...sender.sentFriendRequests,
-                    recieverEmail,
-                ]
-                await sender.save()
-                ws.send(JSON.stringify({status: "success"}))
+
+                const recieverId = reciever.id
+                const reieverWs = notiSockets.get(recieverId)
+
+                if (typeof reciever.recievedFriendRequests === "undefined") {
+                    reciever.recievedFriendRequests = []
+                }
+
+                isSentAlready = reciever.recievedFriendRequests.find(
+                    (em) => em === senderEmail
+                )
+
+                hasRecievedAlready = reciever.sentFriendRequests.find(
+                    (em) => em === senderEmail
+                )
+
+                if (isReciever && !isSentAlready && !hasRecievedAlready) {
+                    if (typeof sender.sentFriendRequests === "undefined") {
+                        sender.sentFriendRequests = []
+                    }
+                    sender.sentFriendRequests = [
+                        ...sender.sentFriendRequests,
+                        recieverEmail,
+                    ]
+                    const senderSentReq = sender.sentFriendRequests
+                    await sender.save()
+                    ws.send(
+                        JSON.stringify({
+                            status: "success",
+                            sentFriendReq: senderSentReq,
+                        })
+                    )
+
+                    reciever.recievedFriendRequests = [
+                        ...reciever.recievedFriendRequests,
+                        senderEmail,
+                    ]
+                    const recieverRecReq = reciever.recievedFriendRequests
+                    await reciever.save()
+                    reieverWs.send(
+                        JSON.stringify({
+                            status: "new friend request",
+                            reievedFriendReq: recieverRecReq,
+                        })
+                    )
+                }
+
+                if (isSentAlready) {
+                    ws.send(
+                        JSON.stringify({
+                            status: "error",
+                            message: `you have already sent friend request to user with email: ${recieverEmail}`,
+                        })
+                    )
+                }
+                if (hasRecievedAlready) {
+                    ws.send(
+                        JSON.stringify({
+                            status: "error",
+                            message: `you already have request from user with email: ${recieverEmail}. check 'recieved friend requests page'`,
+                        })
+                    )
+                }
+            } catch (e) {
+                console.log(e)
             }
-        } catch (e) {
-            console.log(e)
         }
     })
 })
