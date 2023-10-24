@@ -1,57 +1,57 @@
-require('dotenv').config()
-const express = require('express')
-const cors = require('cors')
-const bodyParser = require('body-parser')
-const mongoose = require('mongoose')
-const bcrypt = require('bcrypt')
-const passport = require('passport')
-const GoogleStrategy = require('passport-google-oauth20').Strategy
-const FacebookStrategy = require('passport-facebook').Strategy
-const findOrCreate = require('mongoose-findorcreate')
-const session = require('express-session')
-const { default: axios } = require('axios')
-const jwt = require('jsonwebtoken')
-const e = require('express')
-const WebSocket = require('ws').Server
+require("dotenv").config()
+const express = require("express")
+const cors = require("cors")
+const bodyParser = require("body-parser")
+const mongoose = require("mongoose")
+const bcrypt = require("bcrypt")
+const passport = require("passport")
+const GoogleStrategy = require("passport-google-oauth20").Strategy
+const FacebookStrategy = require("passport-facebook").Strategy
+const findOrCreate = require("mongoose-findorcreate")
+const session = require("express-session")
+const {default: axios} = require("axios")
+const jwt = require("jsonwebtoken")
+const e = require("express")
+const WebSocket = require("ws").Server
 const objectId = mongoose.Types.ObjectId
 
 // HASHING
 const saltRounds = 10
-const secretKey = 'hello'
+const secretKey = "hello"
 
 // TEMPLATE
 const app = express()
-app.use(express.json({ limit: '3mb' }))
-app.use(express.urlencoded({ extended: true, limit: '3mb' }))
+app.use(express.json({limit: "3mb"}))
+app.use(express.urlencoded({extended: true, limit: "3mb"}))
 
 // CORS
 const corsOptions = {
-    origin: 'http://localhost:5173',
+    origin: "http://localhost:5173",
     credentials: true,
     optionSuccessStatus: 200,
 }
 app.use(cors(corsOptions))
 
 // BODYPARSER
-app.use(bodyParser.urlencoded({ extended: false }))
+app.use(bodyParser.urlencoded({extended: false}))
 app.use(bodyParser.json())
 
 // DATABASE
-const userConn = mongoose.createConnection('mongodb://0.0.0.0:27017/tradingDB')
+const userConn = mongoose.createConnection("mongodb://0.0.0.0:27017/tradingDB")
 const messageConn = mongoose.createConnection(
-    'mongodb://0.0.0.0:27017/tradingMessageDB'
+    "mongodb://0.0.0.0:27017/tradingMessageDB"
 )
 const chatroomConn = mongoose.createConnection(
-    'mongodb://0.0.0.0:27017/chatroomDB'
+    "mongodb://0.0.0.0:27017/chatroomDB"
 )
 
 // COOKIES / SESSIONS
 app.use(
     session({
-        secret: 'es',
+        secret: "es",
         resave: false,
         saveUninitialized: true,
-        cookie: { secure: false },
+        cookie: {secure: false},
     })
 )
 app.use(passport.session())
@@ -86,7 +86,7 @@ const userSchema = new mongoose.Schema({
 })
 userSchema.plugin(findOrCreate)
 
-const User = userConn.model('User', userSchema)
+const User = userConn.model("User", userSchema)
 
 const messageSchema = new mongoose.Schema({
     userId: String,
@@ -95,7 +95,7 @@ const messageSchema = new mongoose.Schema({
     message: String,
 })
 
-const Message = messageConn.model('Message', messageSchema)
+const Message = messageConn.model("Message", messageSchema)
 
 const chatroomSchema = mongoose.Schema({
     name: String,
@@ -104,7 +104,7 @@ const chatroomSchema = mongoose.Schema({
     },
 })
 
-const Chatroom = messageConn.model('Chatroom', chatroomSchema)
+const Chatroom = messageConn.model("Chatroom", chatroomSchema)
 
 // PASSPORT SOCIAL LOGIN STRATEGIES
 passport.use(
@@ -112,7 +112,7 @@ passport.use(
         {
             clientID: process.env.GOOGLE_CLIENT_ID,
             clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            callbackURL: '/oauth2/redirect/google',
+            callbackURL: "/oauth2/redirect/google",
         },
         function (req, accessToken, refreshToken, profile, cb) {
             User.findOrCreate(
@@ -125,8 +125,8 @@ passport.use(
                         lastName: profile.name.familyName,
                         username: profile.displayName,
                         image: profile.photos[0].value,
-                        account: '0',
-                        startingAccount: '0',
+                        account: "0",
+                        startingAccount: "0",
                     },
                 },
                 function (err, user) {
@@ -143,8 +143,8 @@ passport.use(
         {
             clientID: process.env.FACEBOOK_APP_ID,
             clientSecret: process.env.FACEBOOK_APP_SECRET,
-            callbackURL: 'http://localhost:3000/auth/facebook/callback',
-            profileFields: ['id', 'emails', 'name', 'displayName', 'photos'],
+            callbackURL: "http://localhost:3000/auth/facebook/callback",
+            profileFields: ["id", "emails", "name", "displayName", "photos"],
         },
         function (req, accessToken, refreshToken, profile, cb) {
             User.findOrCreate(
@@ -157,8 +157,8 @@ passport.use(
                         lastName: profile.name.familyName,
                         username: profile.displayName,
                         image: profile.photos[0].value,
-                        account: '0',
-                        startingAccount: '0',
+                        account: "0",
+                        startingAccount: "0",
                     },
                 },
                 function (err, user) {
@@ -171,15 +171,15 @@ passport.use(
 )
 
 const authenticateJWT = (req, res, next) => {
-    const token = req.header('Authorization')?.split(' ')[1]
+    const token = req.header("Authorization")?.split(" ")[1]
 
     if (!token) {
-        return res.status(401).json({ message: 'Unauthorized' })
+        return res.status(401).json({message: "Unauthorized"})
     }
 
     jwt.verify(token, secretKey, (err, user) => {
         if (err) {
-            return res.status(403).json({ message: 'Invalid token' })
+            return res.status(403).json({message: "Invalid token"})
         }
 
         req.user = user
@@ -194,7 +194,7 @@ const authenticateJWT = (req, res, next) => {
 //////////////////////////////////////////////////////////////////////////////////
 
 // LOGIN
-app.post('/api/login', async (req, res) => {
+app.post("/api/login", async (req, res) => {
     const email = req.body.email
     const id = req.body.id
 
@@ -203,10 +203,10 @@ app.post('/api/login', async (req, res) => {
             const user = await User.findById(id)
             if (user) {
                 const token = jwt.sign(
-                    { id: user.id, role: user.role },
+                    {id: user.id, role: user.role},
                     secretKey,
                     {
-                        expiresIn: '1h',
+                        expiresIn: "1h",
                     }
                 )
                 res.json({
@@ -220,14 +220,14 @@ app.post('/api/login', async (req, res) => {
                     messages: user.messages,
                 })
             } else {
-                res.json({ message: 'social user does not exist' })
+                res.json({message: "social user does not exist"})
             }
         } catch (error) {
             console.log(error)
         }
     } else {
         try {
-            User.findOne({ email: email }).then((item) => {
+            User.findOne({email: email}).then((item) => {
                 if (item) {
                     bcrypt.compare(
                         req.body.password,
@@ -235,10 +235,10 @@ app.post('/api/login', async (req, res) => {
                         function (err, result) {
                             if (result) {
                                 const token = jwt.sign(
-                                    { id: item.id, role: item.role },
+                                    {id: item.id, role: item.role},
                                     secretKey,
                                     {
-                                        expiresIn: '1h',
+                                        expiresIn: "1h",
                                     }
                                 )
                                 res.json({
@@ -249,11 +249,11 @@ app.post('/api/login', async (req, res) => {
                                     token,
                                     layouts: item.layouts,
                                 })
-                            } else res.json({ message: 'incorrect password' })
+                            } else res.json({message: "incorrect password"})
                         }
                     )
                 } else {
-                    res.json({ message: 'user does not exist' })
+                    res.json({message: "user does not exist"})
                 }
             })
         } catch (error) {
@@ -266,13 +266,13 @@ app.post('/api/login', async (req, res) => {
 // SOCIAL LOGIN
 
 app.get(
-    '/auth/google',
-    passport.authenticate('google', { scope: ['email', 'profile'] })
+    "/auth/google",
+    passport.authenticate("google", {scope: ["email", "profile"]})
 )
 app.get(
-    '/oauth2/redirect/google',
-    passport.authenticate('google', {
-        failureRedirect: 'http://localhost:5173',
+    "/oauth2/redirect/google",
+    passport.authenticate("google", {
+        failureRedirect: "http://localhost:5173",
     }),
     function (req, res) {
         const id = req.user.userId
@@ -280,14 +280,11 @@ app.get(
     }
 )
 
+app.get("/auth/facebook", passport.authenticate("facebook", {scope: ["email"]}))
 app.get(
-    '/auth/facebook',
-    passport.authenticate('facebook', { scope: ['email'] })
-)
-app.get(
-    '/auth/facebook/callback',
-    passport.authenticate('facebook', {
-        failureRedirect: 'http://localhost:5173',
+    "/auth/facebook/callback",
+    passport.authenticate("facebook", {
+        failureRedirect: "http://localhost:5173",
     }),
     function (req, res) {
         const id = req.user.userId
@@ -295,8 +292,8 @@ app.get(
     }
 )
 
-app.post('/api/socialdata', async (req, res) => {
-    const { data } = await axios.post('http://localhost:3000/api/login', {
+app.post("/api/socialdata", async (req, res) => {
+    const {data} = await axios.post("http://localhost:3000/api/login", {
         id: req.body.id,
     })
     res.json({
@@ -314,7 +311,7 @@ app.post('/api/socialdata', async (req, res) => {
 //////////////////////////////////////////////////////////////////////////////////
 // SIGNUP
 
-app.post('/api/signup', (req, res) => {
+app.post("/api/signup", (req, res) => {
     try {
         bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
             if (!err) {
@@ -325,12 +322,12 @@ app.post('/api/signup', (req, res) => {
                 })
                 user.save()
                     .then(() => {
-                        User.findOne({ email: req.body.email }).then((item) => {
+                        User.findOne({email: req.body.email}).then((item) => {
                             const token = jwt.sign(
-                                { id: item.id, role: item.role },
+                                {id: item.id, role: item.role},
                                 secretKey,
                                 {
-                                    expiresIn: '1h',
+                                    expiresIn: "1h",
                                 }
                             )
                             res.json({
@@ -338,13 +335,13 @@ app.post('/api/signup', (req, res) => {
                                 trades: item.trades,
                                 info: item.data,
                                 token,
-                                message: 'success',
+                                message: "success",
                             })
                         })
                     })
                     .catch((err) => console.log(err))
             } else {
-                res.json({ error: err })
+                res.json({error: err})
             }
         })
     } catch (error) {
@@ -352,13 +349,13 @@ app.post('/api/signup', (req, res) => {
     }
 })
 
-app.post('/api/checkuser', async (req, res) => {
-    User.findOne({ email: req.body.email })
+app.post("/api/checkuser", async (req, res) => {
+    User.findOne({email: req.body.email})
         .then((item) => {
             if (!item) {
-                res.json({ message: 'success' })
+                res.json({message: "success"})
             } else {
-                res.json({ message: 'user already exists' })
+                res.json({message: "user already exists"})
             }
         })
         .catch((e) => console.log(e))
@@ -367,8 +364,8 @@ app.post('/api/checkuser', async (req, res) => {
 //////////////////////////////////////////////////////////////////////////////////
 // NEW
 
-app.post('/api/newtrade', async (req, res) => {
-    const { id, stock, accBefore, accAfter, pl, date, time, action } = req.body
+app.post("/api/newtrade", async (req, res) => {
+    const {id, stock, accBefore, accAfter, pl, date, time, action} = req.body
     try {
         await User.findByIdAndUpdate(id, {
             $push: {
@@ -384,13 +381,13 @@ app.post('/api/newtrade', async (req, res) => {
             },
         })
         const user = await User.findById(id)
-        res.status(200).json({ id: user.id, trades: user.trades })
+        res.status(200).json({id: user.id, trades: user.trades})
     } catch (error) {
         console.log(error)
     }
 })
 
-app.post('/api/tradesfile', async (req, res) => {
+app.post("/api/tradesfile", async (req, res) => {
     const file = req.body.data
     const id = req.body.id
 
@@ -398,15 +395,8 @@ app.post('/api/tradesfile', async (req, res) => {
         const addTrades = async (trades) => {
             return Promise.all(
                 trades.map(async (trade) => {
-                    const {
-                        stock,
-                        accAfter,
-                        accBefore,
-                        pl,
-                        date,
-                        time,
-                        action,
-                    } = trade
+                    const {stock, accAfter, accBefore, pl, date, time, action} =
+                        trade
 
                     await User.findByIdAndUpdate(id, {
                         $push: {
@@ -427,13 +417,13 @@ app.post('/api/tradesfile', async (req, res) => {
 
         await addTrades(file)
         const user = await User.findById(id)
-        res.json({ trades: user.trades })
+        res.json({trades: user.trades})
     } catch (error) {
         console.log(error)
     }
 })
 
-app.post('/api/note', async (req, res) => {
+app.post("/api/note", async (req, res) => {
     try {
         const update = await User.findByIdAndUpdate(req.body.id, {
             $push: {
@@ -446,13 +436,13 @@ app.post('/api/note', async (req, res) => {
         })
         await update.save()
         const user = await User.findById(req.body.id)
-        res.json({ notes: user.notes })
+        res.json({notes: user.notes})
     } catch (error) {
         console.log(error)
     }
 })
 
-app.patch('/api/noteupdate', async (req, res) => {
+app.patch("/api/noteupdate", async (req, res) => {
     const func = req.body.func
     const id = req.body.id
     const index = req.body.index
@@ -460,20 +450,20 @@ app.patch('/api/noteupdate', async (req, res) => {
     try {
         const user = await User.findById(id)
 
-        if (func === 'pin') {
+        if (func === "pin") {
             user.notes[index].pinned = true
         }
-        if (func === 'unpin') {
+        if (func === "unpin") {
             user.notes[index].pinned = false
         }
-        if (func === 'delete') {
+        if (func === "delete") {
             user.notes.pull(user.notes[index])
         }
 
         await user.save()
 
         const updatedUser = await User.findById(id)
-        res.json({ notes: updatedUser.notes })
+        res.json({notes: updatedUser.notes})
     } catch (error) {
         console.log(error)
     }
@@ -482,23 +472,23 @@ app.patch('/api/noteupdate', async (req, res) => {
 //////////////////////////////////////////////////////////////////////////////////
 // USER UPDATES
 
-app.patch('/api/updateaccbalance', async (req, res) => {
+app.patch("/api/updateaccbalance", async (req, res) => {
     try {
         const user = await User.findByIdAndUpdate(
             req.body.id,
             {
-                $set: { 'data.account': req.body.setAcc },
+                $set: {"data.account": req.body.setAcc},
             },
-            { new: true }
+            {new: true}
         )
-        res.json({ message: 'success', info: user.data })
+        res.json({message: "success", info: user.data})
     } catch (error) {
         console.log(error)
     }
 })
 
-app.post('/api/updateuser', async (req, res) => {
-    const { id, username, email, balance, image } = req.body
+app.post("/api/updateuser", async (req, res) => {
+    const {id, username, email, balance, image} = req.body
     try {
         const user = await User.findById(id)
 
@@ -509,11 +499,11 @@ app.post('/api/updateuser', async (req, res) => {
 
         const updatedUser = await User.findByIdAndUpdate(id, {
             $set: {
-                'data.username': newUsername,
+                "data.username": newUsername,
                 email: newEmail,
-                'data.account': newBalance,
-                'data.email': newEmail,
-                'data.image': newImage,
+                "data.account": newBalance,
+                "data.email": newEmail,
+                "data.image": newImage,
             },
         })
 
@@ -522,7 +512,7 @@ app.post('/api/updateuser', async (req, res) => {
         const response = await User.findById(id)
 
         res.json({
-            message: 'success',
+            message: "success",
             info: response.data,
         })
     } catch (error) {
@@ -530,20 +520,20 @@ app.post('/api/updateuser', async (req, res) => {
     }
 })
 
-app.post('/api/changepassword', (req, res) => {
+app.post("/api/changepassword", (req, res) => {
     try {
         bcrypt.hash(req.body.password, saltRounds, async (err, hash) => {
             if (!err) {
                 const user = await User.findByIdAndUpdate(req.body.id, {
-                    $set: { password: hash },
+                    $set: {password: hash},
                 })
                 await user.save()
 
                 res.json({
-                    message: 'success',
+                    message: "success",
                 })
             } else {
-                res.json({ error: err })
+                res.json({error: err})
             }
         })
     } catch (error) {
@@ -551,7 +541,7 @@ app.post('/api/changepassword', (req, res) => {
     }
 })
 
-app.post('/api/changeplan', async (req, res) => {
+app.post("/api/changeplan", async (req, res) => {
     const id = req.body.id
     const pricingPlan = req.body.plan
 
@@ -567,7 +557,7 @@ app.post('/api/changeplan', async (req, res) => {
     }
 })
 
-app.patch('/api/deleteuser', async (req, res) => {
+app.patch("/api/deleteuser", async (req, res) => {
     try {
         const user = await User.findById(req.body.id)
         bcrypt.compare(
@@ -577,9 +567,9 @@ app.patch('/api/deleteuser', async (req, res) => {
                 if (result) {
                     await User.findByIdAndRemove(req.body.id)
                     res.json({
-                        message: 'success',
+                        message: "success",
                     })
-                } else res.json({ message: 'incorrect password' })
+                } else res.json({message: "incorrect password"})
             }
         )
     } catch (error) {
@@ -587,12 +577,12 @@ app.patch('/api/deleteuser', async (req, res) => {
     }
 })
 
-app.delete('/api/deleteTrades/:id', authenticateJWT, async (req, res) => {
+app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
     try {
         const id = req.params.id
-        const user = await User.findByIdAndUpdate(id, { trades: [] })
+        const user = await User.findByIdAndUpdate(id, {trades: []})
         await user.save()
-        res.json({ message: 'works' })
+        res.json({message: "works"})
     } catch (error) {
         console.log(error)
     }
@@ -601,7 +591,7 @@ app.delete('/api/deleteTrades/:id', authenticateJWT, async (req, res) => {
 //////////////////////////////////////////////////////////////////////////////////
 // MESSAGES (CONTACT)
 
-app.post('/api/message', async (req, res) => {
+app.post("/api/message", async (req, res) => {
     try {
         const message = new Message({
             userId: req.body.id,
@@ -610,7 +600,7 @@ app.post('/api/message', async (req, res) => {
             message: req.body.message,
         })
         await message.save()
-        res.json({ message: 'Message succesfully sent' })
+        res.json({message: "Message succesfully sent"})
     } catch (error) {
         console.log(error)
     }
@@ -624,25 +614,25 @@ const server = new WebSocket({
     port: 3001,
 })
 
-server.on('connection', (socket) => {
+server.on("connection", (socket) => {
     client = socket
-    socket.send('Client connected')
-    socket.on('close', () => {
+    socket.send("Client connected")
+    socket.on("close", () => {
         client = null
     })
 })
 
-app.post('/api/hod-screener-data', async (req, res) => {
+app.post("/api/hod-screener-data", async (req, res) => {
     const stockData = req.body
     client.send(JSON.stringify(stockData))
 
-    res.json({ message: 'success' })
+    res.json({message: "success"})
 })
 
 //////////////////////////////////////////////////////////////////////////////////
 // SCREENER LAYOUTS
 
-app.post('/api/new-layout', async (req, res) => {
+app.post("/api/new-layout", async (req, res) => {
     const layout = req.body.layout
     const id = req.body.id
     try {
@@ -653,13 +643,13 @@ app.post('/api/new-layout', async (req, res) => {
         })
         const user = await User.findById(id)
 
-        res.json({ layouts: user.layouts })
+        res.json({layouts: user.layouts})
     } catch (error) {
         console.log(error)
     }
 })
 
-app.post('/api/edit-layout', async (req, res) => {
+app.post("/api/edit-layout", async (req, res) => {
     const layoutIndex = req.body.layoutIndex
     const layout = req.body.layout
     const id = req.body.id
@@ -671,13 +661,13 @@ app.post('/api/edit-layout', async (req, res) => {
         userLayout[layoutIndex] = layout
 
         await user.save()
-        res.json({ layouts: userLayout })
+        res.json({layouts: userLayout})
     } catch (error) {
         console.log(error)
     }
 })
 
-app.put('/api/delete-layout', async (req, res) => {
+app.put("/api/delete-layout", async (req, res) => {
     const id = req.body.id
     const layoutIndex = req.body.index
     try {
@@ -688,7 +678,7 @@ app.put('/api/delete-layout', async (req, res) => {
         )
         user.layouts = updatedUserLayouts
         await user.save()
-        res.json({ layouts: user.layouts })
+        res.json({layouts: user.layouts})
     } catch (error) {
         console.log(error)
     }
@@ -702,23 +692,23 @@ const sockets = new Map()
 const chatroomServer = new WebSocket({
     port: 3002,
 })
-chatroomServer.on('connection', (ws) => {
-    ws.on('error', console.error)
+chatroomServer.on("connection", (ws) => {
+    ws.on("error", console.error)
 
-    ws.on('message', async (data) => {
-        if (typeof JSON.parse(data).message === 'undefined') {
-            const { id } = JSON.parse(data)
+    ws.on("message", async (data) => {
+        if (typeof JSON.parse(data).message === "undefined") {
+            const {id} = JSON.parse(data)
             sockets.set(id, ws)
         } else {
-            const { senderId, message } = JSON.parse(data)
-            const recieverId = 'janiselacis'
+            const {senderId, message} = JSON.parse(data)
+            const recieverId = "janiselacis"
 
             try {
                 const sender = await User.findById(
                     senderId.slice(1, senderId.length - 1)
                 )
 
-                if (typeof sender.messages[recieverId] === 'undefined') {
+                if (typeof sender.messages[recieverId] === "undefined") {
                     sender.messages = {
                         ...sender.messages,
                         [recieverId]: [],
@@ -739,7 +729,7 @@ chatroomServer.on('connection', (ws) => {
                 }
                 await sender.save()
             } catch (e) {
-                console.log('line 729')
+                console.log("line 729")
                 console.log(e)
             }
 
@@ -765,15 +755,15 @@ chatroomServer.on('connection', (ws) => {
 const friendServer = new WebSocket({
     port: 3003,
 })
-friendServer.on('connection', (ws) => {
-    ws.on('error', console.error)
+friendServer.on("connection", (ws) => {
+    ws.on("error", console.error)
 
-    ws.on('message', async (data) => {
-        const { senderEmail, recieverEmail } = JSON.parse(data)
+    ws.on("message", async (data) => {
+        const {senderEmail, recieverEmail} = JSON.parse(data)
 
         try {
-            const sender = await User.findOne({ email: senderEmail })
-            if (typeof sender.friends === 'undefined') {
+            const sender = await User.findOne({email: senderEmail})
+            if (typeof sender.friends === "undefined") {
                 sender.friends = []
             }
             sender.friends = [...sender.friends, recieverEmail]
@@ -783,8 +773,8 @@ friendServer.on('connection', (ws) => {
         }
 
         try {
-            const friend = await User.findOne({ email: friendEmail })
-            if (typeof friend.friends === 'undefined') {
+            const friend = await User.findOne({email: friendEmail})
+            if (typeof friend.friends === "undefined") {
                 friend.friends = []
             }
             friend.friends = [...friend.friends, senderEmail]
@@ -799,44 +789,66 @@ friendServer.on('connection', (ws) => {
 const sendFriendReq = new WebSocket({
     port: 3004,
 })
-sendFriendReq.on('connection', (ws) => {
-    ws.on('error', console.error)
+sendFriendReq.on("connection", (ws) => {
+    ws.on("error", console.error)
 
-    ws.on('message', async (data) => {
-        const { senderEmail } = JSON.parse(data)
-        const recieverEmail = 'janislaics06@gmail.com'
+    ws.on("message", async (data) => {
+        const {senderEmail, recieverEmail} = JSON.parse(data)
+
+        let isReciever = true
+        let isSentAlready = null
+
         try {
-            const sender = await User.findOne({ email: senderEmail })
-            if (typeof sender.sentFriendRequests === 'undefined') {
-                sender.sentFriendRequests = []
+            const reciever = await User.findOne({email: recieverEmail})
+            if (reciever === null) {
+                isReciever = false
+                ws.send(
+                    JSON.stringify({
+                        status: "error",
+                        message: "user does not exist",
+                    })
+                )
             }
-            sender.sentFriendRequests = [
-                ...sender.sentFriendRequests,
-                recieverEmail,
-            ]
-            await sender.save()
+
+            if (typeof reciever.recievedFriendRequests === "undefined") {
+                reciever.recievedFriendRequests = []
+            }
+
+            isSentAlready = reciever.recievedFriendRequests.find(
+                (em) => em === senderEmail
+            )
+
+            if (isSentAlready) {
+                ws.send(
+                    JSON.stringify({
+                        status: "error",
+                        message: `you have already sent friend request to user with email: ${recieverEmail}`,
+                    })
+                )
+            } else {
+                reciever.recievedFriendRequests = [
+                    ...reciever.recievedFriendRequests,
+                    senderEmail,
+                ]
+                await reciever.save()
+            }
         } catch (e) {
             console.log(e)
         }
 
         try {
-            const reciever = await User.findOne({ email: recieverEmail })
-            if (reciever === null) {
-                ws.send(
-                    JSON.stringify({
-                        status: 'error',
-                        message: 'user does not exist',
-                    })
-                )
+            if (isReciever && !isSentAlready) {
+                const sender = await User.findOne({email: senderEmail})
+                if (typeof sender.sentFriendRequests === "undefined") {
+                    sender.sentFriendRequests = []
+                }
+                sender.sentFriendRequests = [
+                    ...sender.sentFriendRequests,
+                    recieverEmail,
+                ]
+                await sender.save()
+                ws.send(JSON.stringify({status: "success"}))
             }
-            if (typeof reciever.recievedFriendRequests === 'undefined') {
-                reciever.recievedFriendRequests = []
-            }
-            reciever.recievedFriendRequests = [
-                ...reciever.recievedFriendRequests,
-                senderEmail,
-            ]
-            await reciever.save()
         } catch (e) {
             console.log(e)
         }
@@ -850,5 +862,5 @@ sendFriendReq.on('connection', (ws) => {
 //////////////////////////////////////////////////////////////////////////////////
 
 app.listen(3000, () => {
-    console.log('Server running on port 3000')
+    console.log("Server running on port 3000")
 })
