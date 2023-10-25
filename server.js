@@ -248,6 +248,10 @@ app.post("/api/login", async (req, res) => {
                                     notes: item.notes,
                                     token,
                                     layouts: item.layouts,
+                                    sentFriendRequests: item.sentFriendRequests,
+                                    recievedFriendRequests:
+                                        item.recievedFriendRequests,
+                                    messages: item.messages,
                                 })
                             } else res.json({message: "incorrect password"})
                         }
@@ -767,7 +771,8 @@ chatroomServer.on("connection", (ws) => {
     })
 })
 
-// ACCEPT FRIEND SOCKET
+// ACCEPT / DECLINE FRIEND SOCKET
+const adSockets = new Map()
 const friendServer = new WebSocket({
     port: 3003,
 })
@@ -775,28 +780,61 @@ friendServer.on("connection", (ws) => {
     ws.on("error", console.error)
 
     ws.on("message", async (data) => {
-        const {senderEmail, recieverEmail} = JSON.parse(data)
+        if (JSON.parse(data).id) {
+            const {id} = JSON.parse(data)
+            adSockets.set(id, ws)
+        } else {
+            const {senderEmail, recieverEmail, action} = JSON.parse(data)
 
-        try {
-            const sender = await User.findOne({email: senderEmail})
-            if (typeof sender.friends === "undefined") {
-                sender.friends = []
+            try {
+                const reciever = await User.findOne({email: recieverEmail})
+                if (typeof reciever.friends === "undefined") {
+                    reciever.friends = []
+                }
+                if (action === "accept") {
+                    reciever.friends = [...reciever.friends, recieverEmail]
+                    ws.send(
+                        JSON.stringify({
+                            status: "success",
+                            message: "friend request acccepted",
+                        })
+                    )
+                } else {
+                    reciever.recievedFriendRequests.filter(
+                        (req) => req !== senderEmail
+                    )
+                    ws.send(
+                        JSON.stringify({
+                            status: "success",
+                            message: "friend request declined",
+                        })
+                    )
+                }
+                await reciever.save()
+            } catch (e) {
+                console.log(e)
             }
-            sender.friends = [...sender.friends, recieverEmail]
-            await sender.save()
-        } catch (e) {
-            console.log(e)
-        }
 
-        try {
-            const friend = await User.findOne({email: friendEmail})
-            if (typeof friend.friends === "undefined") {
-                friend.friends = []
+            try {
+                const sender = await User.findOne({email: senderEmail})
+                if (typeof sender.friends === "undefined") {
+                    sender.friends = []
+                }
+                if (action === "accept") {
+                    sender.friends = [...sender.friends, senderEmail]
+                    const senderWs = notiSockets.get(sender.id)
+                    senderWs.send(
+                        JSON.stringify({
+                            status: "new friend",
+                            friends: sender.friends,
+                        })
+                    )
+                }
+                sender.sentFriendRequests.filter((req) => req !== recieverEmail)
+                await sender.save()
+            } catch (e) {
+                console.log(e)
             }
-            friend.friends = [...friend.friends, senderEmail]
-            await friend.save()
-        } catch (e) {
-            console.log(e)
         }
     })
 })
@@ -874,7 +912,7 @@ sendFriendReq.on("connection", (ws) => {
                     reieverWs.send(
                         JSON.stringify({
                             status: "new friend request",
-                            reievedFriendReq: recieverRecReq,
+                            recievedFriendReq: recieverRecReq,
                         })
                     )
                 }
