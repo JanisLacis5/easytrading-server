@@ -795,6 +795,7 @@ friendServer.on("connection", (ws) => {
 
             try {
                 const reciever = await User.findOne({email: recieverEmail})
+                const sender = await User.findOne({email: senderEmail})
                 if (typeof reciever.friends === "undefined") {
                     reciever.friends = []
                 }
@@ -802,8 +803,8 @@ friendServer.on("connection", (ws) => {
                     reciever.friends = [
                         ...reciever.friends,
                         {
-                            email: recieverEmail,
-                            username: reciever.data.username,
+                            email: senderEmail,
+                            username: sender.data.username,
                         },
                     ]
                     ws.send(
@@ -826,19 +827,17 @@ friendServer.on("connection", (ws) => {
                 )
 
                 await reciever.save()
-            } catch (e) {
-                console.log(e)
-            }
 
-            try {
-                const sender = await User.findOne({email: senderEmail})
                 if (typeof sender.friends === "undefined") {
                     sender.friends = []
                 }
                 if (action === "accept") {
                     sender.friends = [
                         ...sender.friends,
-                        {email: senderEmail, username: sender.data.username},
+                        {
+                            email: recieverEmail,
+                            username: reciever.data.username,
+                        },
                     ]
                     const senderWs = notiSockets.get(sender.id)
                     if (senderWs) {
@@ -846,6 +845,9 @@ friendServer.on("connection", (ws) => {
                             JSON.stringify({
                                 status: "new friend",
                                 friends: sender.friends,
+                                sentFriendReq: sender.sentFriendRequests.filter(
+                                    (req) => req !== recieverEmail
+                                ),
                             })
                         )
                     }
@@ -896,7 +898,7 @@ sendFriendReq.on("connection", (ws) => {
                 }
 
                 const recieverId = reciever.id
-                const reieverWs = notiSockets.get(recieverId)
+                const recieverWs = notiSockets.get(recieverId)
 
                 if (typeof reciever.recievedFriendRequests === "undefined") {
                     reciever.recievedFriendRequests = []
@@ -934,7 +936,7 @@ sendFriendReq.on("connection", (ws) => {
                     const recieverRecReq = reciever.recievedFriendRequests
                     await reciever.save()
                     if (recieverWs) {
-                        reieverWs.send(
+                        recieverWs.send(
                             JSON.stringify({
                                 status: "new friend request",
                                 recievedFriendReq: recieverRecReq,
