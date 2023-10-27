@@ -323,6 +323,13 @@ app.post("/api/signup", (req, res) => {
                     email: req.body.email,
                     data: req.body.userData,
                     password: hash,
+                    trades: [],
+                    layouts: [],
+                    notes: [],
+                    messages: {},
+                    friends: [],
+                    sentFriendRequests: [],
+                    recievedFriendRequests: [],
                 })
                 user.save()
                     .then(() => {
@@ -805,17 +812,19 @@ friendServer.on("connection", (ws) => {
                             message: "friend request acccepted",
                         })
                     )
-                } else {
-                    reciever.recievedFriendRequests.filter(
-                        (req) => req !== senderEmail
-                    )
-                    ws.send(
-                        JSON.stringify({
-                            status: "success",
-                            message: "friend request declined",
-                        })
-                    )
                 }
+                reciever.recievedFriendRequests = [
+                    ...reciever.recievedFriendRequests.filter(
+                        (req) => req !== senderEmail
+                    ),
+                ]
+                ws.send(
+                    JSON.stringify({
+                        status: "success",
+                        message: "friend request declined",
+                    })
+                )
+
                 await reciever.save()
             } catch (e) {
                 console.log(e)
@@ -841,7 +850,11 @@ friendServer.on("connection", (ws) => {
                         )
                     }
                 }
-                sender.sentFriendRequests.filter((req) => req !== recieverEmail)
+                sender.sentFriendRequests = [
+                    ...sender.sentFriendRequests.filter(
+                        (req) => req !== recieverEmail
+                    ),
+                ]
                 await sender.save()
             } catch (e) {
                 console.log(e)
@@ -920,12 +933,14 @@ sendFriendReq.on("connection", (ws) => {
                     ]
                     const recieverRecReq = reciever.recievedFriendRequests
                     await reciever.save()
-                    reieverWs.send(
-                        JSON.stringify({
-                            status: "new friend request",
-                            recievedFriendReq: recieverRecReq,
-                        })
-                    )
+                    if (recieverWs) {
+                        reieverWs.send(
+                            JSON.stringify({
+                                status: "new friend request",
+                                recievedFriendReq: recieverRecReq,
+                            })
+                        )
+                    }
                 }
 
                 if (isSentAlready) {
