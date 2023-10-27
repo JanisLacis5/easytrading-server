@@ -792,7 +792,13 @@ friendServer.on("connection", (ws) => {
                     reciever.friends = []
                 }
                 if (action === "accept") {
-                    reciever.friends = [...reciever.friends, recieverEmail]
+                    reciever.friends = [
+                        ...reciever.friends,
+                        {
+                            email: recieverEmail,
+                            username: reciever.data.username,
+                        },
+                    ]
                     ws.send(
                         JSON.stringify({
                             status: "success",
@@ -821,14 +827,19 @@ friendServer.on("connection", (ws) => {
                     sender.friends = []
                 }
                 if (action === "accept") {
-                    sender.friends = [...sender.friends, senderEmail]
+                    sender.friends = [
+                        ...sender.friends,
+                        {email: senderEmail, username: sender.data.username},
+                    ]
                     const senderWs = notiSockets.get(sender.id)
-                    senderWs.send(
-                        JSON.stringify({
-                            status: "new friend",
-                            friends: sender.friends,
-                        })
-                    )
+                    if (senderWs) {
+                        senderWs.send(
+                            JSON.stringify({
+                                status: "new friend",
+                                friends: sender.friends,
+                            })
+                        )
+                    }
                 }
                 sender.sentFriendRequests.filter((req) => req !== recieverEmail)
                 await sender.save()
