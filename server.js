@@ -215,6 +215,7 @@ app.post("/api/login", async (req, res) => {
                     info: user.data,
                     notes: user.notes,
                     token: token,
+                    friends: user.friends,
                     sentFriendRequests: user.sentFriendRequests,
                     recievedFriendRequests: user.recievedFriendRequests,
                     messages: user.messages,
@@ -247,6 +248,7 @@ app.post("/api/login", async (req, res) => {
                                     info: item.data,
                                     notes: item.notes,
                                     token,
+                                    friends: item.friends,
                                     layouts: item.layouts,
                                     sentFriendRequests: item.sentFriendRequests,
                                     recievedFriendRequests:
