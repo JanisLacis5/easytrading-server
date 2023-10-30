@@ -721,61 +721,67 @@ const chatroomServer = new WebSocket({
     port: 3002,
 })
 chatroomServer.on("connection", (ws) => {
-    console.log("noti socket connected")
+    // console.log("message socket connected")
     ws.on("error", console.error)
 
     ws.on("message", async (data) => {
-        if (typeof JSON.parse(data).message === "undefined") {
+        if (JSON.parse(data).id) {
             const {id} = JSON.parse(data)
             messageSockets.set(id, ws)
         } else {
-            const {senderId, message} = JSON.parse(data)
-            const recieverId = "janiselacis"
+            const {date, time, message, senderEmail, recieverEmail} =
+                JSON.parse(data)
 
-            try {
-                const sender = await User.findById(
-                    senderId.slice(1, senderId.length - 1)
-                )
-
-                if (typeof sender.messages[recieverId] === "undefined") {
-                    sender.messages = {
-                        ...sender.messages,
-                        [recieverId]: [],
-                    }
-                }
-
-                sender.messages = {
-                    ...sender.messages,
-                    [recieverId]: [
-                        ...sender.messages[recieverId],
-                        {
-                            sender: true,
-                            time: message.time,
-                            date: message.date,
-                            text: message.text,
-                        },
-                    ],
-                }
-                await sender.save()
-            } catch (e) {
-                console.log("line 729")
-                console.log(e)
+            const fullMessage = {
+                date,
+                time,
+                message,
             }
 
-            // try {
-            //     const reciever = await User.findById(
-            //         recieverId.slice(1, recieverId.length - 1)
-            //     )
-            //     reciever.messages[senderId].push({
-            //         sender: false,
-            //         time: message.time,
-            //         date: message.date,
-            //         text: message.text,
-            //     })
-            //     await reciever.save()
-            // } catch (e) {
-            //     console.log(e)
-            // }
+            const sender = await User.findOne({email: senderEmail})
+            const reciever = await User.findOne({email: recieverEmail})
+
+            if (typeof sender.messages === "undefined") {
+                sender.messages = {}
+            }
+            if (typeof reciever.messages === "undefined") {
+                reciever.messages = {}
+            }
+
+            if (typeof sender.messages[recieverEmail] === "undefined") {
+                sender.messages[recieverEmail] = []
+                reciever.messages[senderEmail] = []
+            }
+
+            sender.messages[recieverEmail] = [
+                ...sender.messages[recieverEmail],
+                {...fullMessage, sender: true},
+            ]
+            reciever.messages[senderEmail] = [
+                ...reciever.messages[senderEmail],
+                {...fullMessage, sender: false},
+            ]
+
+            ws.send(
+                JSON.stringify({
+                    status: "success",
+                    updatedMessages: sender.messages,
+                })
+            )
+
+            const recieverSocket = notiSockets.get(reciever.id)
+
+            if (recieverSocket) {
+                recieverSocket.send(
+                    JSON.stringify({
+                        status: "new message",
+                        updatedMessages: reciever.messages,
+                    })
+                )
+            }
+
+            await sender.save()
+            await reciever.save()
         }
     })
 })
