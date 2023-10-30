@@ -394,7 +394,7 @@ app.post("/api/newtrade", async (req, res) => {
             },
         })
         const user = await User.findById(id)
-        res.status(200).json({id: user.id, trades: user.trades})
+        res.status(200).json({trades: user.trades})
     } catch (error) {
         console.log(error)
     }
