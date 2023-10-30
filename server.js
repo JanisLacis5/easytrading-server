@@ -753,14 +753,20 @@ chatroomServer.on("connection", (ws) => {
                 reciever.messages[senderEmail] = []
             }
 
-            sender.messages[recieverEmail] = [
-                ...sender.messages[recieverEmail],
-                {...fullMessage, sender: true},
-            ]
-            reciever.messages[senderEmail] = [
-                ...reciever.messages[senderEmail],
-                {...fullMessage, sender: false},
-            ]
+            sender.messages = {
+                ...sender.messages,
+                [recieverEmail]: [
+                    ...sender.messages[recieverEmail],
+                    {...fullMessage, sender: true},
+                ],
+            }
+            reciever.messages = {
+                ...reciever.messages,
+                [senderEmail]: [
+                    ...reciever.messages[senderEmail],
+                    {...fullMessage, sender: false},
+                ],
+            }
 
             ws.send(
                 JSON.stringify({
