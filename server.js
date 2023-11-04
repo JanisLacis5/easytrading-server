@@ -757,10 +757,13 @@ chatroomServer.on('connection', (ws) => {
             const sender = await User.findOne({ email: senderEmail })
             const reciever = await User.findOne({ email: recieverEmail })
 
-            if (typeof sender.messages === 'undefined') {
+            if (!sender.messages || typeof sender.messages === 'undefined') {
                 sender.messages = {}
             }
-            if (typeof reciever.messages === 'undefined') {
+            if (
+                !reciever.messages ||
+                typeof reciever.messages === 'undefined'
+            ) {
                 reciever.messages = {}
             }
 
