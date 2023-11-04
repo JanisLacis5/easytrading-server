@@ -598,7 +598,7 @@ app.patch("/api/deleteuser", async (req, res) => {
 
 app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
     try {
-        const id = req.params.id
+        const id = JSON.parse(req.params.id)
         const user = await User.findByIdAndUpdate(id, {trades: []})
         await user.save()
         res.json({message: "works"})
@@ -986,6 +986,14 @@ sendFriendReq.on("connection", (ws) => {
             }
         }
     })
+})
+
+//////////////////////////////////////////////////////////////////////////////////
+// CHATROOM ROUTES
+
+app.put("/api/remove-friend", (req, res) => {
+    console.log(req.body)
+    res.json({friends: "newFriends"})
 })
 
 //////////////////////////////////////////////////////////////////////////////////
