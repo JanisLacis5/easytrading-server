@@ -13,7 +13,7 @@ const { default: axios } = require('axios')
 const jwt = require('jsonwebtoken')
 const e = require('express')
 const WebSocket = require('ws').Server
-const objectId = mongoose.Types.ObjectId
+const _ = require('lodash')
 
 // HASHING
 const saltRounds = 10
@@ -1001,9 +1001,39 @@ sendFriendReq.on('connection', (ws) => {
 //////////////////////////////////////////////////////////////////////////////////
 // CHATROOM ROUTES
 
-app.put('/api/remove-friend', (req, res) => {
-    console.log(req.body)
-    res.json({ friends: 'newFriends' })
+app.put('/api/remove-friend', async (req, res) => {
+    const friendEmail = req.body.friendEmail
+    const userId = req.body.userId
+
+    const user = await User.findById(userId)
+    const removedFriend = await User.findOne({ email: friendEmail })
+
+    user.friends = [
+        ...user.friends.filter((friend) => {
+            friend.email !== friendEmail
+        }),
+    ]
+    removedFriend.friends = [
+        ...removedFriend.friends.filter((friend) => {
+            friend.email !== user.data.email
+        }),
+    ]
+
+    user.messages = { ..._.omit(user.messages, [friendEmail]) }
+    removedFriend.messages = {
+        ..._.omit(removedFriend.messages, [user.data.email]),
+    }
+
+    const updatedFriends = user.friends
+    const updatedMessages = user.messages
+
+    await user.save()
+    await removedFriend.save()
+
+    res.json({
+        friends: updatedFriends,
+        messages: updatedMessages,
+    })
 })
 
 app.patch('/api/logout', (req, res) => {
