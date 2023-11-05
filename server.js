@@ -737,7 +737,6 @@ const chatroomServer = new WebSocket({
     port: 3002,
 })
 chatroomServer.on('connection', (ws) => {
-    // console.log("message socket connected")
     ws.on('error', console.error)
 
     ws.on('message', async (data) => {
