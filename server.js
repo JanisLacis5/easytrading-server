@@ -743,59 +743,66 @@ chatroomServer.on("connection", (ws) => {
                 message,
             }
 
-            const sender = await User.findOne({email: senderEmail})
-            const reciever = await User.findOne({email: recieverEmail})
+            try {
+                const sender = await User.findOne({email: senderEmail})
+                const reciever = await User.findOne({email: recieverEmail})
 
-            if (!sender.messages || typeof sender.messages === "undefined") {
-                sender.messages = {}
-            }
-            if (
-                !reciever.messages ||
-                typeof reciever.messages === "undefined"
-            ) {
-                reciever.messages = {}
-            }
+                if (
+                    !sender.messages ||
+                    typeof sender.messages === "undefined"
+                ) {
+                    sender.messages = {}
+                }
+                if (
+                    !reciever.messages ||
+                    typeof reciever.messages === "undefined"
+                ) {
+                    reciever.messages = {}
+                }
 
-            if (typeof sender.messages[recieverEmail] === "undefined") {
-                sender.messages[recieverEmail] = []
-                reciever.messages[senderEmail] = []
-            }
+                if (typeof sender.messages[recieverEmail] === "undefined") {
+                    sender.messages[recieverEmail] = []
+                    reciever.messages[senderEmail] = []
+                }
 
-            sender.messages = {
-                ...sender.messages,
-                [recieverEmail]: [
-                    ...sender.messages[recieverEmail],
-                    {...fullMessage, sender: true},
-                ],
-            }
-            reciever.messages = {
-                ...reciever.messages,
-                [senderEmail]: [
-                    ...reciever.messages[senderEmail],
-                    {...fullMessage, sender: false},
-                ],
-            }
+                sender.messages = {
+                    ...sender.messages,
+                    [recieverEmail]: [
+                        ...sender.messages[recieverEmail],
+                        {...fullMessage, sender: true},
+                    ],
+                }
+                reciever.messages = {
+                    ...reciever.messages,
+                    [senderEmail]: [
+                        ...reciever.messages[senderEmail],
+                        {...fullMessage, sender: false},
+                    ],
+                }
 
-            ws.send(
-                JSON.stringify({
-                    status: "success",
-                    updatedMessages: sender.messages,
-                })
-            )
+                await sender.save()
+                await reciever.save()
 
-            const recieverSocket = notiSockets.get(reciever.id)
-
-            if (recieverSocket) {
-                recieverSocket.send(
+                ws.send(
                     JSON.stringify({
-                        status: "new message",
-                        updatedMessages: reciever.messages,
+                        status: "success",
+                        updatedMessages: sender.messages,
                     })
                 )
-            }
 
-            await sender.save()
-            await reciever.save()
+                const recieverSocket = notiSockets.get(reciever.id)
+
+                if (recieverSocket) {
+                    recieverSocket.send(
+                        JSON.stringify({
+                            status: "new message",
+                            updatedMessages: reciever.messages,
+                        })
+                    )
+                }
+            } catch (error) {
+                console.log(error)
+            }
         }
     })
 })
@@ -1000,38 +1007,39 @@ sendFriendReq.on("connection", (ws) => {
 app.put("/api/remove-friend", async (req, res) => {
     const friendEmail = req.body.friendEmail
     const userId = req.body.userId
+    try {
+        const user = await User.findById(userId)
+        const removedFriend = await User.findOne({email: friendEmail})
 
-    console.log(friendEmail)
+        user.friends = [
+            ...user.friends.filter((friend) => {
+                friend.email !== friendEmail
+            }),
+        ]
+        removedFriend.friends = [
+            ...removedFriend.friends.filter((friend) => {
+                friend.email !== user.data.email
+            }),
+        ]
 
-    const user = await User.findById(userId)
-    const removedFriend = await User.findOne({email: friendEmail})
+        user.messages = {..._.omit(user.messages, [friendEmail])}
+        removedFriend.messages = {
+            ..._.omit(removedFriend.messages, [user.data.email]),
+        }
 
-    user.friends = [
-        ...user.friends.filter((friend) => {
-            friend.email !== friendEmail
-        }),
-    ]
-    removedFriend.friends = [
-        ...removedFriend.friends.filter((friend) => {
-            friend.email !== user.data.email
-        }),
-    ]
+        const updatedFriends = user.friends
+        const updatedMessages = user.messages
 
-    user.messages = {..._.omit(user.messages, [friendEmail])}
-    removedFriend.messages = {
-        ..._.omit(removedFriend.messages, [user.data.email]),
+        await user.save()
+        await removedFriend.save()
+
+        res.json({
+            friends: updatedFriends,
+            messages: updatedMessages,
+        })
+    } catch (error) {
+        console.log(error)
     }
-
-    const updatedFriends = user.friends
-    const updatedMessages = user.messages
-
-    await user.save()
-    await removedFriend.save()
-
-    res.json({
-        friends: updatedFriends,
-        messages: updatedMessages,
-    })
 })
 
 app.patch("/api/logout", (req, res) => {
@@ -1041,6 +1049,31 @@ app.patch("/api/logout", (req, res) => {
     adSockets.delete(id)
     reqSockets.delete(id)
     res.json({status: "success"})
+})
+
+app.post("/api/new-message", async (req, res) => {
+    const {friendEmail, userId} = req.body
+
+    try {
+        const user = await User.findById(userId)
+        const friend = await User.findOne({email: friendEmail})
+
+        user.messages = {
+            ...user.messages,
+            [friendEmail]: [],
+        }
+        friend.messages = {
+            ...friend.messages,
+            [user.email]: [],
+        }
+
+        await user.save()
+        await friend.save()
+
+        res.json({message: "success"})
+    } catch (error) {
+        console.log(error)
+    }
 })
 
 //////////////////////////////////////////////////////////////////////////////////
