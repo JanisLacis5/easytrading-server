@@ -80,6 +80,7 @@ const userSchema = new mongoose.Schema({
         },
     ],
     messages: Object,
+    hiddenMessages: Array,
     friends: Array,
     sentFriendRequests: Array,
     recievedFriendRequests: Array,
@@ -219,6 +220,7 @@ app.post("/api/login", async (req, res) => {
                     sentFriendRequests: user.sentFriendRequests,
                     recievedFriendRequests: user.recievedFriendRequests,
                     messages: user.messages,
+                    hiddenMessages: user.hiddenMessages,
                 })
             } else {
                 res.json({message: "social user does not exist"})
@@ -254,6 +256,7 @@ app.post("/api/login", async (req, res) => {
                                     recievedFriendRequests:
                                         item.recievedFriendRequests,
                                     messages: item.messages,
+                                    hiddenMessages: item.hiddenMessages,
                                 })
                             } else res.json({message: "incorrect password"})
                         }
@@ -1033,7 +1036,7 @@ app.put("/api/remove-friend", async (req, res) => {
         await user.save()
         await removedFriend.save()
 
-        res.json({
+        res.status(200).json({
             friends: updatedFriends,
             messages: updatedMessages,
         })
@@ -1048,7 +1051,7 @@ app.patch("/api/logout", (req, res) => {
     messageSockets.delete(id)
     adSockets.delete(id)
     reqSockets.delete(id)
-    res.json({status: "success"})
+    res.status(200).json({status: "success"})
 })
 
 app.post("/api/new-message", async (req, res) => {
@@ -1070,7 +1073,38 @@ app.post("/api/new-message", async (req, res) => {
         await user.save()
         await friend.save()
 
-        res.json({message: "success"})
+        res.status(200).json({message: "success"})
+    } catch (error) {
+        console.log(error)
+    }
+})
+
+app.post("/api/hide-chats", async (req, res) => {
+    const {userId, friendEmail} = req.body
+
+    try {
+        const user = await User.findById(userId)
+        const friend = await User.findOne({email: friendEmail})
+
+        if (user.hiddenMessages) {
+            user.hiddenMessages = [
+                ...user.hiddenMessages,
+                {email: friendEmail, username: friend.data.username},
+            ]
+        } else {
+            user.hiddenMessages = [
+                {email: friendEmail, username: friend.data.username},
+            ]
+        }
+
+        const hiddenMessages = user.hiddenMessages
+
+        await user.save()
+
+        res.status(200).json({
+            message: "success",
+            hiddenMessages: hiddenMessages,
+        })
     } catch (error) {
         console.log(error)
     }
