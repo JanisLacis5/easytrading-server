@@ -1155,11 +1155,11 @@ app.post("/api/block-user", async (req, res) => {
 		if (user.blockedUsers) {
 			user.blockedUsers = [
 				...user.blockedUsers,
-				{ emial: friendEmail, username: friend.data.username },
+				{ email: friendEmail, username: friend.data.username },
 			]
 		} else {
 			user.blockedUsers = [
-				{ emial: friendEmail, username: friend.data.username },
+				{ email: friendEmail, username: friend.data.username },
 			]
 		}
 
@@ -1199,6 +1199,22 @@ app.post("/api/last-chat", async (req, res) => {
 		res.status(200).json({
 			message: "success",
 			lastActiveChat: userLastActiveChat,
+		})
+	} catch (error) {
+		console.log(error)
+	}
+})
+
+app.post("/api/find-username", async (req, res) => {
+	const { email } = req.body
+
+	try {
+		const user = await User.findOne({ email: email })
+		res.status(200).json({
+			user: {
+				email: user.email,
+				username: user.data.username,
+			},
 		})
 	} catch (error) {
 		console.log(error)
