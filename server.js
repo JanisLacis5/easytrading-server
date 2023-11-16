@@ -798,16 +798,37 @@ chatroomServer.on("connection", (ws) => {
 				) {
 					sender.messages = {}
 				}
-				if (
-					!reciever.messages ||
-					typeof reciever.messages === "undefined"
-				) {
-					reciever.messages = {}
+
+				// CHECK IF RECIEVER HASNT BLOCKED SENDER
+				const isSenderBlocked = reciever.blockedUsers.find(
+					(u) => u.email === senderEmail
+				)
+
+				if (!isSenderBlocked) {
+					if (
+						!reciever.messages ||
+						typeof reciever.messages === "undefined"
+					) {
+						reciever.messages = {}
+					}
+
+					if (typeof sender.messages[recieverEmail] === "undefined") {
+						reciever.messages[senderEmail] = []
+					}
+
+					reciever.messages = {
+						...reciever.messages,
+						[senderEmail]: [
+							...reciever.messages[senderEmail],
+							{ ...fullMessage, sender: false },
+						],
+					}
+
+					await reciever.save()
 				}
 
 				if (typeof sender.messages[recieverEmail] === "undefined") {
 					sender.messages[recieverEmail] = []
-					reciever.messages[senderEmail] = []
 				}
 
 				sender.messages = {
@@ -817,16 +838,8 @@ chatroomServer.on("connection", (ws) => {
 						{ ...fullMessage, sender: true },
 					],
 				}
-				reciever.messages = {
-					...reciever.messages,
-					[senderEmail]: [
-						...reciever.messages[senderEmail],
-						{ ...fullMessage, sender: false },
-					],
-				}
 
 				await sender.save()
-				await reciever.save()
 
 				ws.send(
 					JSON.stringify({
@@ -837,7 +850,7 @@ chatroomServer.on("connection", (ws) => {
 
 				const recieverSocket = notiSockets.get(reciever.id)
 
-				if (recieverSocket) {
+				if (recieverSocket && !isSenderBlocked) {
 					recieverSocket.send(
 						JSON.stringify({
 							status: "new message",
