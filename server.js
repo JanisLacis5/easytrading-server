@@ -13,7 +13,6 @@ const { default: axios } = require("axios")
 const jwt = require("jsonwebtoken")
 const e = require("express")
 const WebSocket = require("ws").Server
-const _ = require("lodash")
 
 // HASHING
 const saltRounds = 10
@@ -1073,11 +1072,6 @@ app.put("/api/remove-friend", async (req, res) => {
 			}),
 		]
 
-		user.messages = { ..._.omit(user.messages, [friendEmail]) }
-		removedFriend.messages = {
-			..._.omit(removedFriend.messages, [user.data.email]),
-		}
-
 		const updatedFriends = user.friends
 		const updatedMessages = user.messages
 
@@ -1205,11 +1199,14 @@ app.post("/api/unblock-user", async (req, res) => {
 		// check if friend still has user in friends
 		const isUserFriend = friend.friends.find((f) => f.email === user.email)
 
+		// update blockedUsers array
+		user.blockedUsers = [
+			...user.blockedUsers.filter((f) => f.email !== friendEmail),
+		]
+		const updatedBlockedUsers = user.blockedUsers
+
 		if (isUserFriend) {
-			// update blockedUsers and friends arrays
-			user.blockedUsers = [
-				...user.blockedUsers.filter((f) => f.email !== friendEmail),
-			]
+			// update friends array
 			user.friends = [
 				...user.friends,
 				{ email: friend.email, username: friend.data.username },
@@ -1232,7 +1229,6 @@ app.post("/api/unblock-user", async (req, res) => {
 			}
 
 			// updated values
-			const updatedBlockedUsers = user.blockedUsers
 			const updatedFriends = user.friends
 			const updatedMessages = user.messages
 
@@ -1244,6 +1240,12 @@ app.post("/api/unblock-user", async (req, res) => {
 				messages: updatedMessages,
 			})
 		} else {
+			await user.save()
+
+			res.status(200).json({
+				blockedUsers: updatedBlockedUsers,
+				message: "add again",
+			})
 		}
 	} catch (error) {
 		console.log(error)
