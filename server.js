@@ -1252,7 +1252,7 @@ app.post("/api/unblock-user", async (req, res) => {
 	}
 })
 
-app.post("/api/last-chat", async (req, res) => {
+app.post("/api/set-last-chat", async (req, res) => {
 	const { username, email, userId } = req.body
 
 	try {
@@ -1270,6 +1270,18 @@ app.post("/api/last-chat", async (req, res) => {
 		res.status(200).json({
 			message: "success",
 			lastActiveChat: userLastActiveChat,
+		})
+	} catch (error) {
+		console.log(error)
+	}
+})
+
+app.post("/api/get-last-chat", async (req, res) => {
+	const { userId } = req.body
+	try {
+		const user = await User.findById(userId)
+		res.status(200).json({
+			lastChat: user.lastActiveChat,
 		})
 	} catch (error) {
 		console.log(error)
