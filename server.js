@@ -1176,8 +1176,8 @@ app.post("/api/block-user", async (req, res) => {
 			]
 		}
 
-		friend.friends = [
-			...friend.friends.filter((fr) => fr.email !== user.email),
+		user.friends = [
+			...user.friends.filter((fr) => fr.email !== friend.email),
 		]
 
 		const userBlockedUsers = user.blockedUsers
@@ -1189,6 +1189,62 @@ app.post("/api/block-user", async (req, res) => {
 			messages: "success",
 			blockedUsers: userBlockedUsers,
 		})
+	} catch (error) {
+		console.log(error)
+	}
+})
+
+app.post("/api/unblock-user", async (req, res) => {
+	const { userId, friendEmail } = req.body
+
+	try {
+		// find both users
+		const user = await User.findById(userId)
+		const friend = await User.findOne({ email: friendEmail })
+
+		// check if friend still has user in friends
+		const isUserFriend = friend.friends.find((f) => f.email === user.email)
+
+		if (isUserFriend) {
+			// update blockedUsers and friends arrays
+			user.blockedUsers = [
+				...user.blockedUsers.filter((f) => f.email !== friendEmail),
+			]
+			user.friends = [
+				...user.friends,
+				{ email: friend.email, username: friend.data.username },
+			]
+
+			// restore all chats
+			const allChats = friend.messages[user.email]
+			if (allChats) {
+				user.messages = {
+					...user.messages,
+					[friendEmail]: [
+						...allChats.map((m) => {
+							return {
+								...m,
+								sender: !m.sender,
+							}
+						}),
+					],
+				}
+			}
+
+			// updated values
+			const updatedBlockedUsers = user.blockedUsers
+			const updatedFriends = user.friends
+			const updatedMessages = user.messages
+
+			await user.save()
+
+			res.status(200).json({
+				blockedUsers: updatedBlockedUsers,
+				friends: updatedFriends,
+				messages: updatedMessages,
+			})
+		} else {
+		}
 	} catch (error) {
 		console.log(error)
 	}
