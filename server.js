@@ -791,26 +791,12 @@ chatroomServer.on("connection", (ws) => {
 				const sender = await User.findOne({ email: senderEmail })
 				const reciever = await User.findOne({ email: recieverEmail })
 
-				if (
-					!sender.messages ||
-					typeof sender.messages === "undefined"
-				) {
-					sender.messages = {}
-				}
-
 				// CHECK IF RECIEVER HASNT BLOCKED SENDER
 				const isSenderBlocked = reciever.blockedUsers.find(
 					(u) => u.email === senderEmail
 				)
 
 				if (!isSenderBlocked) {
-					if (
-						!reciever.messages ||
-						typeof reciever.messages === "undefined"
-					) {
-						reciever.messages = {}
-					}
-
 					if (typeof sender.messages[recieverEmail] === "undefined") {
 						reciever.messages[senderEmail] = []
 					}
@@ -883,10 +869,6 @@ friendServer.on("connection", (ws) => {
 				const reciever = await User.findOne({ email: recieverEmail })
 				const sender = await User.findOne({ email: senderEmail })
 
-				if (typeof reciever.friends === "undefined") {
-					reciever.friends = []
-				}
-
 				if (action === "accept") {
 					reciever.friends = [
 						...reciever.friends,
@@ -895,6 +877,7 @@ friendServer.on("connection", (ws) => {
 							username: sender.data.username,
 						},
 					]
+
 					ws.send(
 						JSON.stringify({
 							status: "success",
@@ -918,9 +901,6 @@ friendServer.on("connection", (ws) => {
 
 				await reciever.save()
 
-				if (typeof sender.friends === "undefined") {
-					sender.friends = []
-				}
 				if (action === "accept") {
 					sender.friends = [
 						...sender.friends,
@@ -929,6 +909,7 @@ friendServer.on("connection", (ws) => {
 							username: reciever.data.username,
 						},
 					]
+
 					const senderWs = notiSockets.get(sender.id)
 					if (senderWs) {
 						senderWs.send(
