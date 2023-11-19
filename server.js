@@ -84,7 +84,7 @@ const userSchema = new mongoose.Schema({
 	sentFriendRequests: Array,
 	recievedFriendRequests: Array,
 	blockedUsers: Array,
-	lastActiveChat: Object,
+	chatsActivityOrder: Array,
 })
 userSchema.plugin(findOrCreate)
 
@@ -170,7 +170,7 @@ passport.use(
 					sentFriendRequests: [],
 					recievedFriendRequests: [],
 					blockedUsers: [],
-					lastActiveChat: {},
+					chatsActivityOrder: [],
 				},
 				function (err, user) {
 					req = profile.id
@@ -232,7 +232,7 @@ app.post("/api/login", async (req, res) => {
 					messages: user.messages,
 					hiddenMessages: user.hiddenMessages,
 					blockedUsers: user.blockedUsers,
-					lastActiveChat: user.lastActiveChat,
+					chatsActivityOrder: user.chatsActivityOrder,
 				})
 			} else {
 				res.json({ message: "social user does not exist" })
@@ -270,7 +270,7 @@ app.post("/api/login", async (req, res) => {
 									messages: item.messages,
 									hiddenMessages: item.hiddenMessages,
 									blockedUsers: item.blockedUsers,
-									lastActiveChat: item.lastActiveChat,
+									chatsActivityOrder: item.chatsActivityOrder,
 								})
 							} else res.json({ message: "incorrect password" })
 						}
@@ -335,7 +335,7 @@ app.post("/api/socialdata", async (req, res) => {
 		hiddenMessages: data.hiddenMessages,
 		friends: data.friends,
 		blockedUsers: data.blockedUsers,
-		lastActiveChat: data.lastActiveChat,
+		chatsActivityOrder: data.chatsActivityOrder,
 	})
 })
 
@@ -359,7 +359,7 @@ app.post("/api/signup", (req, res) => {
 					sentFriendRequests: [],
 					recievedFriendRequests: [],
 					blockedUsers: [],
-					lastActiveChat: {},
+					chatsActivityOrder: [],
 				})
 				await user.save()
 
@@ -386,7 +386,7 @@ app.post("/api/signup", (req, res) => {
 					recievedFriendRequests: completeUser.recievedFriendRequests,
 					sentFriendRequests: completeUser.sentFriendRequests,
 					blockedUsers: completeUser.blockedUsers,
-					lastActiveChat: completeUser.lastActiveChat,
+					chatsActivityOrder: completeUser.chatsActivityOrder,
 					hiddenMessages: completeUser.hiddenMessages,
 					token,
 					message: "success",
@@ -1234,36 +1234,44 @@ app.post("/api/unblock-user", async (req, res) => {
 	}
 })
 
-app.post("/api/set-last-chat", async (req, res) => {
+app.post("/api/update-active-chats-order", async (req, res) => {
 	const { username, email, userId } = req.body
 
 	try {
 		const user = await User.findById(userId)
 
-		user.lastActiveChat = {
+		const lastActiveChat = {
 			username: username,
 			email: email,
 		}
 
-		const userLastActiveChat = user.lastActiveChat
+		// filter out lastActiveChat from chatsActivityOrder and set it as first
+		const newOrder = user.chatsActivityOrder.filter(
+			(m) => m.email !== email
+		)
+		newOrder.push(lastActiveChat)
+
+		user.chatsActivityOrder = [...newOrder]
+
+		const newChatsActivityOrder = user.chatsActivityOrder
 
 		await user.save()
 
 		res.status(200).json({
 			message: "success",
-			lastActiveChat: userLastActiveChat,
+			lastActiveChat: lastActiveChat,
 		})
 	} catch (error) {
 		console.log(error)
 	}
 })
 
-app.post("/api/get-last-chat", async (req, res) => {
+app.post("/api/get-last-active-chat", async (req, res) => {
 	const { userId } = req.body
 	try {
 		const user = await User.findById(userId)
 		res.status(200).json({
-			lastChat: user.lastActiveChat,
+			lastActiveChat: user.chatsActivityOrder[0],
 		})
 	} catch (error) {
 		console.log(error)
