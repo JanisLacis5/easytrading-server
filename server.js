@@ -13,6 +13,7 @@ const { default: axios } = require("axios")
 const jwt = require("jsonwebtoken")
 const e = require("express")
 const WebSocket = require("ws").Server
+const _ = require("lodash")
 
 // HASHING
 const saltRounds = 10
@@ -1279,6 +1280,50 @@ app.post("/api/find-username", async (req, res) => {
 				email: user.email,
 				username: user.data.username,
 			},
+		})
+	} catch (error) {
+		console.log(error)
+	}
+})
+
+app.patch("/api/clear-chat", async (req, res) => {
+	const { email, userId } = req.body
+
+	try {
+		const user = await User.findById(userId)
+
+		user.messages = {
+			...user.messages,
+			[email]: [],
+		}
+		const newUserMessages = user.messages
+
+		await user.save()
+
+		res.status(200).json({
+			messages: newUserMessages,
+		})
+	} catch (error) {
+		console.log(error)
+	}
+})
+
+app.patch("/api/delete-chat", async (req, res) => {
+	const { email, userId } = req.body
+
+	try {
+		const user = await User.findById(userId)
+		const updatedChats = _.omit(user.messages, email)
+
+		user.messages = {
+			...updatedChats,
+		}
+		const newUserMessages = user.messages
+
+		await user.save()
+
+		res.status(200).json({
+			messages: newUserMessages,
 		})
 	} catch (error) {
 		console.log(error)
