@@ -1134,6 +1134,25 @@ app.post("/api/hide-chats", async (req, res) => {
 	}
 })
 
+app.patch("/api/unhide-chat", async (req, res) => {
+	const { email, userId } = req.body
+
+	try {
+		const user = await User.findById(userId)
+
+		const updatedHiddenMessages = user.hiddenMessages.filter(
+			(m) => m.email !== email
+		)
+		user.hiddenMessages = [...updatedHiddenMessages]
+
+		res.status(200).json({
+			hiddenMessages: updatedHiddenMessages,
+		})
+	} catch (error) {
+		console.log(error)
+	}
+})
+
 app.post("/api/block-user", async (req, res) => {
 	const { userId, friendEmail } = req.body
 
