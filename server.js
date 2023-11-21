@@ -1,19 +1,20 @@
-require("dotenv").config()
-const express = require("express")
-const cors = require("cors")
-const bodyParser = require("body-parser")
-const mongoose = require("mongoose")
-const bcrypt = require("bcrypt")
-const passport = require("passport")
-const GoogleStrategy = require("passport-google-oauth20").Strategy
-const FacebookStrategy = require("passport-facebook").Strategy
-const findOrCreate = require("mongoose-findorcreate")
-const session = require("express-session")
-const { default: axios } = require("axios")
-const jwt = require("jsonwebtoken")
-const e = require("express")
-const WebSocket = require("ws").Server
-const _ = require("lodash")
+import dotenv from "dotenv"
+dotenv.config()
+import express, { json, urlencoded } from "express"
+import cors from "cors"
+import bodyparser from "body-parser"
+import { createConnection, Schema } from "mongoose"
+import { compare, hash as _hash } from "bcrypt"
+import passport from "passport"
+import { Strategy as GoogleStrategy } from "passport-google-oauth20"
+import { Strategy as FacebookStrategy } from "passport-facebook"
+import findOrCreate from "mongoose-findorcreate"
+import session from "express-session"
+import axios from "axios"
+import jsonwebtoken from "jsonwebtoken"
+import { WebSocketServer } from "ws"
+import _ from "lodash"
+import { removeFromChatActivityOrder } from "./functions.js"
 
 // HASHING
 const saltRounds = 10
@@ -21,8 +22,8 @@ const secretKey = "hello"
 
 // TEMPLATE
 const app = express()
-app.use(express.json({ limit: "3mb" }))
-app.use(express.urlencoded({ extended: true, limit: "3mb" }))
+app.use(json({ limit: "3mb" }))
+app.use(urlencoded({ extended: true, limit: "3mb" }))
 
 // CORS
 const corsOptions = {
@@ -33,17 +34,13 @@ const corsOptions = {
 app.use(cors(corsOptions))
 
 // BODYPARSER
-app.use(bodyParser.urlencoded({ extended: false }))
-app.use(bodyParser.json())
+app.use(bodyparser.urlencoded({ extended: false }))
+app.use(bodyparser.json())
 
 // DATABASE
-const userConn = mongoose.createConnection("mongodb://0.0.0.0:27017/tradingDB")
-const messageConn = mongoose.createConnection(
-	"mongodb://0.0.0.0:27017/tradingMessageDB"
-)
-const chatroomConn = mongoose.createConnection(
-	"mongodb://0.0.0.0:27017/chatroomDB"
-)
+const userConn = createConnection("mongodb://0.0.0.0:27017/tradingDB")
+const messageConn = createConnection("mongodb://0.0.0.0:27017/tradingMessageDB")
+const chatroomConn = createConnection("mongodb://0.0.0.0:27017/chatroomDB")
 
 // COOKIES / SESSIONS
 app.use(
@@ -65,7 +62,7 @@ passport.deserializeUser(function (user, done) {
 
 // MONGOSSE
 
-const userSchema = new mongoose.Schema({
+const userSchema = new Schema({
 	email: String,
 	password: String,
 	trades: Array,
@@ -90,7 +87,7 @@ userSchema.plugin(findOrCreate)
 
 const User = userConn.model("User", userSchema)
 
-const messageSchema = new mongoose.Schema({
+const messageSchema = new Schema({
 	userId: String,
 	email: String,
 	question: String,
@@ -99,7 +96,7 @@ const messageSchema = new mongoose.Schema({
 
 const Message = messageConn.model("Message", messageSchema)
 
-const chatroomSchema = mongoose.Schema({
+const chatroomSchema = Schema({
 	name: String,
 	admins: {
 		userId: String,
@@ -188,7 +185,7 @@ const authenticateJWT = (req, res, next) => {
 		return res.status(401).json({ message: "Unauthorized" })
 	}
 
-	jwt.verify(token, secretKey, (err, user) => {
+	jsonwebtoken.verify(token, secretKey, (err, user) => {
 		if (err) {
 			return res.status(403).json({ message: "Invalid token" })
 		}
@@ -213,7 +210,7 @@ app.post("/api/login", async (req, res) => {
 		try {
 			const user = await User.findById(id)
 			if (user) {
-				const token = jwt.sign(
+				const token = jsonwebtoken.sign(
 					{ id: user.id, role: user.role },
 					secretKey,
 					{
@@ -244,12 +241,12 @@ app.post("/api/login", async (req, res) => {
 		try {
 			User.findOne({ email: email }).then((item) => {
 				if (item) {
-					bcrypt.compare(
+					compare(
 						req.body.password,
 						item.password,
 						function (err, result) {
 							if (result) {
-								const token = jwt.sign(
+								const token = sign(
 									{ id: item.id, role: item.role },
 									secretKey,
 									{
@@ -344,7 +341,7 @@ app.post("/api/socialdata", async (req, res) => {
 
 app.post("/api/signup", (req, res) => {
 	try {
-		bcrypt.hash(req.body.password, saltRounds, async (err, hash) => {
+		_hash(req.body.password, saltRounds, async (err, hash) => {
 			if (!err) {
 				const user = new User({
 					email: req.body.email,
@@ -367,7 +364,7 @@ app.post("/api/signup", (req, res) => {
 					email: req.body.email,
 				})
 
-				const token = jwt.sign(
+				const token = sign(
 					{ id: completeUser.id, role: completeUser.role },
 					secretKey,
 					{
@@ -586,7 +583,7 @@ app.post("/api/updateuser", async (req, res) => {
 
 app.post("/api/changepassword", (req, res) => {
 	try {
-		bcrypt.hash(req.body.password, saltRounds, async (err, hash) => {
+		_hash(req.body.password, saltRounds, async (err, hash) => {
 			if (!err) {
 				const user = await User.findByIdAndUpdate(req.body.id, {
 					$set: { password: hash },
@@ -624,18 +621,14 @@ app.post("/api/changeplan", async (req, res) => {
 app.patch("/api/deleteuser", async (req, res) => {
 	try {
 		const user = await User.findById(req.body.id)
-		bcrypt.compare(
-			req.body.password,
-			user.password,
-			async (err, result) => {
-				if (result) {
-					await User.findByIdAndRemove(req.body.id)
-					res.json({
-						message: "success",
-					})
-				} else res.json({ message: "incorrect password" })
-			}
-		)
+		compare(req.body.password, user.password, async (err, result) => {
+			if (result) {
+				await User.findByIdAndRemove(req.body.id)
+				res.json({
+					message: "success",
+				})
+			} else res.json({ message: "incorrect password" })
+		})
 	} catch (error) {
 		console.log(error)
 	}
@@ -674,7 +667,7 @@ app.post("/api/message", async (req, res) => {
 // GETTING SCREENERS INFO / SENDING INFO
 
 let client = null
-const server = new WebSocket({
+const server = new WebSocketServer({
 	port: 3001,
 })
 
@@ -754,7 +747,7 @@ app.put("/api/delete-layout", async (req, res) => {
 // NOTIFICATION SOCKET
 
 const notiSockets = new Map()
-const notiServer = new WebSocket({
+const notiServer = new WebSocketServer({
 	port: 5000,
 })
 notiServer.on("connection", (ws) => {
@@ -768,7 +761,7 @@ notiServer.on("connection", (ws) => {
 
 // MESSAGE SOCKET
 const messageSockets = new Map()
-const chatroomServer = new WebSocket({
+const chatroomServer = new WebSocketServer({
 	port: 3002,
 })
 chatroomServer.on("connection", (ws) => {
@@ -853,7 +846,7 @@ chatroomServer.on("connection", (ws) => {
 
 // ACCEPT / DECLINE FRIEND SOCKET
 const adSockets = new Map()
-const friendServer = new WebSocket({
+const friendServer = new WebSocketServer({
 	port: 3003,
 })
 friendServer.on("connection", (ws) => {
@@ -939,7 +932,7 @@ friendServer.on("connection", (ws) => {
 
 // SEND FRIEND REQUEST
 const reqSockets = new Map()
-const sendFriendReq = new WebSocket({
+const sendFriendReq = new WebSocketServer({
 	port: 3004,
 })
 sendFriendReq.on("connection", (ws) => {
@@ -1121,6 +1114,13 @@ app.post("/api/hide-chats", async (req, res) => {
 			]
 		}
 
+		// remove hidden chat from activity order
+		const newChatsActivityOrder = removeFromChatActivityOrder(
+			user.chatsActivityOrder,
+			friendEmail
+		)
+		user.chatsActivityOrder = [...newChatsActivityOrder]
+
 		const hiddenMessages = user.hiddenMessages
 
 		await user.save()
@@ -1144,6 +1144,8 @@ app.patch("/api/unhide-chat", async (req, res) => {
 			(m) => m.email !== email
 		)
 		user.hiddenMessages = [...updatedHiddenMessages]
+
+		await user.save()
 
 		res.status(200).json({
 			hiddenMessages: updatedHiddenMessages,
@@ -1265,14 +1267,12 @@ app.post("/api/update-active-chats-order", async (req, res) => {
 		}
 
 		// filter out lastActiveChat from chatsActivityOrder and set it as first
-		const newOrder = user.chatsActivityOrder.filter(
-			(m) => m.email !== email
+		const newOrder = removeFromChatActivityOrder(
+			user.chatsActivityOrder,
+			email
 		)
 		newOrder.push(lastActiveChat)
-
 		user.chatsActivityOrder = [...newOrder]
-
-		const newChatsActivityOrder = user.chatsActivityOrder
 
 		await user.save()
 
@@ -1340,7 +1340,7 @@ app.patch("/api/delete-chat", async (req, res) => {
 
 	try {
 		const user = await User.findById(userId)
-		const updatedChats = _.omit(user.messages, email)
+		const updatedChats = omit(user.messages, email)
 
 		user.messages = {
 			...updatedChats,
