@@ -246,7 +246,7 @@ app.post("/api/login", async (req, res) => {
 						item.password,
 						function (err, result) {
 							if (result) {
-								const token = sign(
+								const token = jsonwebtoken.sign(
 									{ id: item.id, role: item.role },
 									secretKey,
 									{
