@@ -96,15 +96,6 @@ const messageSchema = new Schema({
 
 const Message = messageConn.model("Message", messageSchema)
 
-const chatroomSchema = Schema({
-	name: String,
-	admins: {
-		userId: String,
-	},
-})
-
-const Chatroom = messageConn.model("Chatroom", chatroomSchema)
-
 // PASSPORT SOCIAL LOGIN STRATEGIES
 passport.use(
 	new GoogleStrategy(
@@ -218,18 +209,8 @@ app.post("/api/login", async (req, res) => {
 					}
 				)
 				res.json({
-					id: user.id,
-					trades: user.trades,
-					info: user.data,
-					notes: user.notes,
+					user: user,
 					token: token,
-					friends: user.friends,
-					sentFriendRequests: user.sentFriendRequests,
-					recievedFriendRequests: user.recievedFriendRequests,
-					messages: user.messages,
-					hiddenMessages: user.hiddenMessages,
-					blockedUsers: user.blockedUsers,
-					chatsActivityOrder: user.chatsActivityOrder,
 				})
 			} else {
 				res.json({ message: "social user does not exist" })
@@ -254,20 +235,8 @@ app.post("/api/login", async (req, res) => {
 									}
 								)
 								res.json({
-									id: item.id,
-									trades: item.trades,
-									info: item.data,
-									notes: item.notes,
-									token,
-									friends: item.friends,
-									layouts: item.layouts,
-									sentFriendRequests: item.sentFriendRequests,
-									recievedFriendRequests:
-										item.recievedFriendRequests,
-									messages: item.messages,
-									hiddenMessages: item.hiddenMessages,
-									blockedUsers: item.blockedUsers,
-									chatsActivityOrder: item.chatsActivityOrder,
+									user: item,
+									token: token,
 								})
 							} else res.json({ message: "incorrect password" })
 						}
@@ -279,6 +248,23 @@ app.post("/api/login", async (req, res) => {
 		} catch (error) {
 			console.log(error)
 		}
+	}
+})
+
+app.post("/api/id-login", async (req, res) => {
+	const { userId } = req.body
+
+	try {
+		const user = await User.findById(userId)
+		const retUser = {
+			...user,
+			id: userId,
+		}
+		res.status(200).json({
+			user: user,
+		})
+	} catch (error) {
+		console.log(error)
 	}
 })
 
