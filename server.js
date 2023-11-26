@@ -395,15 +395,13 @@ app.post("/api/checkuser", async (req, res) => {
 // NEW
 
 app.post("/api/newtrade", async (req, res) => {
-	const { id, stock, accBefore, accAfter, pl, date, time, action } = req.body
+	const { id, stock, pl, date, time, action } = req.body
 	try {
 		const user = await User.findById(id)
 		user.trades = [
 			...user.trades,
 			{
 				stock: stock,
-				accBefore: accBefore,
-				accAfter: accAfter,
 				pl: pl,
 				date: date,
 				time: time,
@@ -461,6 +459,19 @@ app.post("/api/tradesfile", async (req, res) => {
 		await addTrades(file)
 		const user = await User.findById(id)
 		res.json({ trades: user.trades })
+	} catch (error) {
+		console.log(error)
+	}
+})
+
+app.post("/api/get-trades", async (req, res) => {
+	const { userId } = req.body
+
+	try {
+		const user = await User.findById(userId)
+		res.status(200).json({
+			trades: user.trades,
+		})
 	} catch (error) {
 		console.log(error)
 	}
@@ -619,9 +630,10 @@ app.patch("/api/deleteuser", async (req, res) => {
 app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
 	try {
 		const id = JSON.parse(req.params.id)
-		const user = await User.findByIdAndUpdate(id, { trades: [] })
+		const user = await User.findById(id)
+		user.trades = []
 		await user.save()
-		res.json({ message: "works" })
+		res.json({ trades: [] })
 	} catch (error) {
 		console.log(error)
 	}
@@ -1340,11 +1352,32 @@ app.patch("/api/delete-chat", async (req, res) => {
 })
 
 app.post("/api/ibkr-file", async (req, res) => {
-	const { file } = req.body
-	const { data } = await axios.post("http://127.0.0.1:8000/ibkr-file/", {
-		file: file,
-	})
-	console.log(data.data)
+	const { file, userId } = req.body
+	try {
+		const { data } = await axios.post("http://127.0.0.1:8000/ibkr-file/", {
+			file: file,
+		})
+
+		const user = await User.findById(userId)
+		data.data.map((trade) => {
+			const { date, time, symbol, pl, action } = trade
+			user.trades = [
+				...user.trades,
+				{
+					stock: symbol,
+					pl: pl,
+					date: date,
+					time: time,
+					action: action,
+				},
+			]
+		})
+		const newUserTrades = user.trades
+		await user.save()
+		res.status(200).json({ trades: newUserTrades })
+	} catch (error) {
+		console.log(error)
+	}
 })
 
 //////////////////////////////////////////////////////////////////////////////////
