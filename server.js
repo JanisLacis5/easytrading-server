@@ -4,17 +4,43 @@ import express, { json, urlencoded } from "express"
 import cors from "cors"
 import bodyparser from "body-parser"
 import { createConnection, Schema } from "mongoose"
-import { compare, hash as _hash } from "bcrypt"
+import { hash as _hash } from "bcrypt"
 import passport from "passport"
 import { Strategy as GoogleStrategy } from "passport-google-oauth20"
 import { Strategy as FacebookStrategy } from "passport-facebook"
 import findOrCreate from "mongoose-findorcreate"
 import session from "express-session"
-import axios from "axios"
 import jsonwebtoken from "jsonwebtoken"
 import { WebSocketServer } from "ws"
 import _ from "lodash"
-import { removeFromChatActivityOrder } from "./functions.js"
+import { ibkrFile } from "./reqFunctions/fileReaders.js"
+import {
+	deleteLayout,
+	deleteTrades,
+	deleteUser,
+} from "./reqFunctions/delete.js"
+import {
+	blockUser,
+	hideChats,
+	removeFriend,
+	sendMessage,
+	unblockUser,
+	unhideChat,
+} from "./reqFunctions/friendMenu.js"
+import {
+	clearChat,
+	findUsername,
+	getLastActiveChat,
+	updateActiveChatsOrder,
+	deleteChat,
+} from "./reqFunctions/chats.js"
+import {
+	fbLogin,
+	googleLogin,
+	socialData,
+} from "./reqFunctions/socialLoginSignup.js"
+import { idLogin, login } from "./reqFunctions/login.js"
+import { checkUser, signup } from "./reqFunctions/signup.js"
 
 // HASHING
 const saltRounds = 10
@@ -85,7 +111,7 @@ const userSchema = new Schema({
 })
 userSchema.plugin(findOrCreate)
 
-const User = userConn.model("User", userSchema)
+export const User = userConn.model("User", userSchema)
 
 const messageSchema = new Schema({
 	userId: String,
@@ -104,27 +130,7 @@ passport.use(
 			clientSecret: process.env.GOOGLE_CLIENT_SECRET,
 			callbackURL: "/oauth2/redirect/google",
 		},
-		function (req, accessToken, refreshToken, profile, cb) {
-			User.findOrCreate(
-				{
-					userId: profile.id,
-					email: profile.emails[0].value,
-					data: {
-						email: profile.emails[0].value,
-						firstName: profile.name.givenName,
-						lastName: profile.name.familyName,
-						username: profile.displayName,
-						image: profile.photos[0].value,
-						account: "0",
-						startingAccount: "0",
-					},
-				},
-				function (err, user) {
-					req = profile.id
-					return cb(err, user)
-				}
-			)
-		}
+		googleLogin
 	)
 )
 
@@ -136,36 +142,7 @@ passport.use(
 			callbackURL: "http://localhost:3000/auth/facebook/callback",
 			profileFields: ["id", "emails", "name", "displayName", "photos"],
 		},
-		function (req, accessToken, refreshToken, profile, cb) {
-			User.findOrCreate(
-				{
-					email: profile.emails[0].value,
-					data: {
-						email: profile.emails[0].value,
-						firstName: profile.name.givenName,
-						lastName: profile.name.familyName,
-						username: profile.displayName,
-						image: profile.photos[0].value,
-						account: "0",
-						startingAccount: "0",
-					},
-					trades: [],
-					layouts: [],
-					notes: [],
-					messages: {},
-					hiddenMessages: [],
-					friends: [],
-					sentFriendRequests: [],
-					recievedFriendRequests: [],
-					blockedUsers: [],
-					chatsActivityOrder: [],
-				},
-				function (err, user) {
-					req = profile.id
-					return cb(err, user)
-				}
-			)
-		}
+		fbLogin
 	)
 )
 
@@ -186,85 +163,12 @@ const authenticateJWT = (req, res, next) => {
 	})
 }
 
-//////////////////////////////////////////////////////////////////////////////////
-
 // ROUTES
 
-//////////////////////////////////////////////////////////////////////////////////
-
 // LOGIN
-app.post("/api/login", async (req, res) => {
-	const email = req.body.email
-	const id = req.body.id
+app.post("/api/login", login)
+app.post("/api/id-login", idLogin)
 
-	if (!email) {
-		try {
-			const user = await User.findById(id)
-			if (user) {
-				const token = jsonwebtoken.sign(
-					{ id: user.id, role: user.role },
-					secretKey,
-					{
-						expiresIn: "1h",
-					}
-				)
-				res.json({
-					user: user,
-					token: token,
-				})
-			} else {
-				res.json({ message: "social user does not exist" })
-			}
-		} catch (error) {
-			console.log(error)
-		}
-	} else {
-		try {
-			User.findOne({ email: email }).then((item) => {
-				if (item) {
-					compare(
-						req.body.password,
-						item.password,
-						function (err, result) {
-							if (result) {
-								const token = jsonwebtoken.sign(
-									{ id: item.id, role: item.role },
-									secretKey,
-									{
-										expiresIn: "1h",
-									}
-								)
-								res.json({
-									user: item,
-									token: token,
-								})
-							} else res.json({ message: "incorrect password" })
-						}
-					)
-				} else {
-					res.json({ message: "user does not exist" })
-				}
-			})
-		} catch (error) {
-			console.log(error)
-		}
-	}
-})
-
-app.post("/api/id-login", async (req, res) => {
-	const { userId } = req.body
-
-	try {
-		const user = await User.findById(userId)
-		res.status(200).json({
-			user: user,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-//////////////////////////////////////////////////////////////////////////////////
 // SOCIAL LOGIN
 
 app.get(
@@ -297,103 +201,13 @@ app.get(
 	}
 )
 
-app.post("/api/socialdata", async (req, res) => {
-	const { data } = await axios.post("http://localhost:3000/api/login", {
-		id: req.body.id,
-	})
-	res.json({
-		id: data.id,
-		trades: data.trades,
-		info: data.info,
-		token: data.token,
-		layouts: data.layouts,
-		notes: data.notes,
-		messages: data.messages,
-		recievedFriendRequests: data.recievedFriendRequests,
-		sentFriendRequests: data.sentFriendRequests,
-		hiddenMessages: data.hiddenMessages,
-		friends: data.friends,
-		blockedUsers: data.blockedUsers,
-		chatsActivityOrder: data.chatsActivityOrder,
-	})
-})
+app.post("/api/socialdata", socialData)
 
-//////////////////////////////////////////////////////////////////////////////////
 // SIGNUP
+app.post("/api/signup", signup)
+app.post("/api/checkuser", checkUser)
 
-app.post("/api/signup", (req, res) => {
-	try {
-		_hash(req.body.password, saltRounds, async (err, hash) => {
-			if (!err) {
-				const user = new User({
-					email: req.body.email,
-					data: req.body.userData,
-					password: hash,
-					trades: [],
-					layouts: [],
-					notes: [],
-					messages: {},
-					hiddenMessages: [],
-					friends: [],
-					sentFriendRequests: [],
-					recievedFriendRequests: [],
-					blockedUsers: [],
-					chatsActivityOrder: [],
-				})
-				await user.save()
-
-				const completeUser = await User.findOne({
-					email: req.body.email,
-				})
-
-				const token = sign(
-					{ id: completeUser.id, role: completeUser.role },
-					secretKey,
-					{
-						expiresIn: "1h",
-					}
-				)
-
-				res.json({
-					id: completeUser.id,
-					trades: completeUser.trades,
-					info: completeUser.data,
-					notes: completeUser.notes,
-					layouts: completeUser.layouts,
-					messages: completeUser.messages,
-					friends: completeUser.friends,
-					recievedFriendRequests: completeUser.recievedFriendRequests,
-					sentFriendRequests: completeUser.sentFriendRequests,
-					blockedUsers: completeUser.blockedUsers,
-					chatsActivityOrder: completeUser.chatsActivityOrder,
-					hiddenMessages: completeUser.hiddenMessages,
-					token,
-					message: "success",
-				})
-			} else {
-				res.json({ error: err })
-			}
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/checkuser", async (req, res) => {
-	User.findOne({ email: req.body.email })
-		.then((item) => {
-			if (!item) {
-				res.json({ message: "success" })
-			} else {
-				res.json({ message: "user already exists" })
-			}
-		})
-		.catch((e) => console.log(e))
-})
-
-//////////////////////////////////////////////////////////////////////////////////
 // NEW
-
 app.post("/api/newtrade", async (req, res) => {
 	const { id, stock, pl, date, time, action } = req.body
 	try {
@@ -611,33 +425,8 @@ app.post("/api/changeplan", async (req, res) => {
 	}
 })
 
-app.patch("/api/deleteuser", async (req, res) => {
-	try {
-		const user = await User.findById(req.body.id)
-		compare(req.body.password, user.password, async (err, result) => {
-			if (result) {
-				await User.findByIdAndRemove(req.body.id)
-				res.json({
-					message: "success",
-				})
-			} else res.json({ message: "incorrect password" })
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.delete("/api/deleteTrades/:id", authenticateJWT, async (req, res) => {
-	try {
-		const id = JSON.parse(req.params.id)
-		const user = await User.findById(id)
-		user.trades = []
-		await user.save()
-		res.json({ trades: [] })
-	} catch (error) {
-		console.log(error)
-	}
-})
+app.patch("/api/deleteuser", deleteUser)
+app.delete("/api/deleteTrades/:id", authenticateJWT, deleteTrades)
 
 //////////////////////////////////////////////////////////////////////////////////
 // MESSAGES (CONTACT)
@@ -718,22 +507,7 @@ app.post("/api/edit-layout", async (req, res) => {
 	}
 })
 
-app.put("/api/delete-layout", async (req, res) => {
-	const id = req.body.id
-	const layoutIndex = req.body.index
-	try {
-		const user = await User.findById(id)
-
-		const updatedUserLayouts = user.layouts.filter(
-			(_, index) => index !== layoutIndex
-		)
-		user.layouts = updatedUserLayouts
-		await user.save()
-		res.json({ layouts: user.layouts })
-	} catch (error) {
-		console.log(error)
-	}
-})
+app.put("/api/delete-layout", deleteLayout)
 
 //////////////////////////////////////////////////////////////////////////////////
 // CHATROOM SERVER
@@ -1020,41 +794,9 @@ sendFriendReq.on("connection", (ws) => {
 	})
 })
 
-//////////////////////////////////////////////////////////////////////////////////
 // CHATROOM ROUTES
 
-app.put("/api/remove-friend", async (req, res) => {
-	const friendEmail = req.body.friendEmail
-	const userId = req.body.userId
-	try {
-		const user = await User.findById(userId)
-		const removedFriend = await User.findOne({ email: friendEmail })
-
-		user.friends = [
-			...user.friends.filter((friend) => {
-				friend.email !== friendEmail
-			}),
-		]
-		removedFriend.friends = [
-			...removedFriend.friends.filter((friend) => {
-				friend.email !== user.data.email
-			}),
-		]
-
-		const updatedFriends = user.friends
-		const updatedMessages = user.messages
-
-		await user.save()
-		await removedFriend.save()
-
-		res.status(200).json({
-			friends: updatedFriends,
-			messages: updatedMessages,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
+app.put("/api/remove-friend", removeFriend)
 
 app.patch("/api/logout", (req, res) => {
 	const id = req.body.id
@@ -1065,326 +807,24 @@ app.patch("/api/logout", (req, res) => {
 	res.status(200).json({ status: "success" })
 })
 
-app.post("/api/new-message", async (req, res) => {
-	const { friendEmail, userId } = req.body
+// FRIEND MENU
+app.post("/api/new-message", sendMessage)
+app.post("/api/hide-chats", hideChats)
+app.patch("/api/unhide-chat", unhideChat)
+app.post("/api/block-user", blockUser)
+app.post("/api/unblock-user", unblockUser)
 
-	try {
-		const user = await User.findById(userId)
-		const friend = await User.findOne({ email: friendEmail })
+// CHATS
+app.post("/api/update-active-chats-order", updateActiveChatsOrder)
+app.post("/api/get-last-active-chat", getLastActiveChat)
+app.post("/api/find-username", findUsername)
+app.patch("/api/clear-chat", clearChat)
+app.patch("/api/delete-chat", deleteChat)
 
-		user.messages = {
-			...user.messages,
-			[friendEmail]: [],
-		}
-		friend.messages = {
-			...friend.messages,
-			[user.email]: [],
-		}
-
-		await user.save()
-		await friend.save()
-
-		res.status(200).json({ message: "success" })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/hide-chats", async (req, res) => {
-	const { userId, friendEmail } = req.body
-
-	try {
-		const user = await User.findById(userId)
-		const friend = await User.findOne({ email: friendEmail })
-
-		if (user.hiddenMessages) {
-			user.hiddenMessages = [
-				...user.hiddenMessages,
-				{ email: friendEmail, username: friend.data.username },
-			]
-		} else {
-			user.hiddenMessages = [
-				{ email: friendEmail, username: friend.data.username },
-			]
-		}
-
-		// remove hidden chat from activity order
-		const newChatsActivityOrder = removeFromChatActivityOrder(
-			user.chatsActivityOrder,
-			friendEmail
-		)
-		user.chatsActivityOrder = [...newChatsActivityOrder]
-
-		const hiddenMessages = user.hiddenMessages
-
-		await user.save()
-
-		res.status(200).json({
-			message: "success",
-			hiddenMessages: hiddenMessages,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.patch("/api/unhide-chat", async (req, res) => {
-	const { email, userId } = req.body
-
-	try {
-		const user = await User.findById(userId)
-
-		const updatedHiddenMessages = user.hiddenMessages.filter(
-			(m) => m.email !== email
-		)
-		user.hiddenMessages = [...updatedHiddenMessages]
-
-		await user.save()
-
-		res.status(200).json({
-			hiddenMessages: updatedHiddenMessages,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/block-user", async (req, res) => {
-	const { userId, friendEmail } = req.body
-
-	try {
-		const user = await User.findById(userId)
-		const friend = await User.findOne({ email: friendEmail })
-
-		if (user.blockedUsers) {
-			user.blockedUsers = [
-				...user.blockedUsers,
-				{ email: friendEmail, username: friend.data.username },
-			]
-		} else {
-			user.blockedUsers = [
-				{ email: friendEmail, username: friend.data.username },
-			]
-		}
-
-		user.friends = [
-			...user.friends.filter((fr) => fr.email !== friend.email),
-		]
-
-		const userBlockedUsers = user.blockedUsers
-
-		await user.save()
-		await friend.save()
-
-		res.status(200).json({
-			messages: "success",
-			blockedUsers: userBlockedUsers,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/unblock-user", async (req, res) => {
-	const { userId, friendEmail } = req.body
-
-	try {
-		// find both users
-		const user = await User.findById(userId)
-		const friend = await User.findOne({ email: friendEmail })
-
-		// check if friend still has user in friends
-		const isUserFriend = friend.friends.find((f) => f.email === user.email)
-
-		// update blockedUsers array
-		user.blockedUsers = [
-			...user.blockedUsers.filter((f) => f.email !== friendEmail),
-		]
-		const updatedBlockedUsers = user.blockedUsers
-
-		if (isUserFriend) {
-			// update friends array
-			user.friends = [
-				...user.friends,
-				{ email: friend.email, username: friend.data.username },
-			]
-
-			// restore all chats
-			const allChats = friend.messages[user.email]
-			if (allChats) {
-				user.messages = {
-					...user.messages,
-					[friendEmail]: [
-						...allChats.map((m) => {
-							return {
-								...m,
-								sender: !m.sender,
-							}
-						}),
-					],
-				}
-			}
-
-			// updated values
-			const updatedFriends = user.friends
-			const updatedMessages = user.messages
-
-			await user.save()
-
-			res.status(200).json({
-				blockedUsers: updatedBlockedUsers,
-				friends: updatedFriends,
-				messages: updatedMessages,
-			})
-		} else {
-			await user.save()
-
-			res.status(200).json({
-				blockedUsers: updatedBlockedUsers,
-				message: "add again",
-			})
-		}
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/update-active-chats-order", async (req, res) => {
-	const { username, email, userId } = req.body
-
-	try {
-		const user = await User.findById(userId)
-
-		const lastActiveChat = {
-			username: username,
-			email: email,
-		}
-
-		// filter out lastActiveChat from chatsActivityOrder and set it as first
-		const newOrder = removeFromChatActivityOrder(
-			user.chatsActivityOrder,
-			email
-		)
-		newOrder.push(lastActiveChat)
-		user.chatsActivityOrder = [...newOrder]
-
-		await user.save()
-
-		res.status(200).json({
-			message: "success",
-			lastActiveChat: lastActiveChat,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/get-last-active-chat", async (req, res) => {
-	const { userId } = req.body
-	try {
-		const user = await User.findById(userId)
-		res.status(200).json({
-			lastActiveChat: user.chatsActivityOrder[0],
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/find-username", async (req, res) => {
-	const { email } = req.body
-
-	try {
-		const user = await User.findOne({ email: email })
-		res.status(200).json({
-			user: {
-				email: user.email,
-				username: user.data.username,
-			},
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.patch("/api/clear-chat", async (req, res) => {
-	const { email, userId } = req.body
-
-	try {
-		const user = await User.findById(userId)
-
-		user.messages = {
-			...user.messages,
-			[email]: [],
-		}
-		const newUserMessages = user.messages
-
-		await user.save()
-
-		res.status(200).json({
-			messages: newUserMessages,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.patch("/api/delete-chat", async (req, res) => {
-	const { email, userId } = req.body
-
-	try {
-		const user = await User.findById(userId)
-		const updatedChats = omit(user.messages, email)
-
-		user.messages = {
-			...updatedChats,
-		}
-		const newUserMessages = user.messages
-
-		await user.save()
-
-		res.status(200).json({
-			messages: newUserMessages,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/ibkr-file", async (req, res) => {
-	const { file, userId } = req.body
-	try {
-		const { data } = await axios.post("http://127.0.0.1:8000/ibkr-file/", {
-			file: file,
-		})
-
-		const user = await User.findById(userId)
-		data.data.map((trade) => {
-			const { date, time, symbol, pl, action } = trade
-			user.trades = [
-				...user.trades,
-				{
-					stock: symbol,
-					pl: pl,
-					date: date,
-					time: time,
-					action: action,
-				},
-			]
-		})
-		const newUserTrades = user.trades
-		await user.save()
-		res.status(200).json({ trades: newUserTrades })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-//////////////////////////////////////////////////////////////////////////////////
+// FILE READERS
+app.post("/api/ibkr-file", ibkrFile)
 
 // ROUTES END
-
-//////////////////////////////////////////////////////////////////////////////////
 
 app.listen(3000, () => {
 	console.log("Server running on port 3000")
