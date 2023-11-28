@@ -10,7 +10,6 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20"
 import { Strategy as FacebookStrategy } from "passport-facebook"
 import findOrCreate from "mongoose-findorcreate"
 import session from "express-session"
-import jsonwebtoken from "jsonwebtoken"
 import { WebSocketServer } from "ws"
 import _ from "lodash"
 import { ibkrFile, trwFile } from "./reqFunctions/fileReaders.js"
@@ -42,9 +41,20 @@ import {
 import { idLogin, login } from "./reqFunctions/login.js"
 import { checkUser, signup } from "./reqFunctions/signup.js"
 import axios from "axios"
+import { logout } from "./reqFunctions/logout.js"
+import { editLayout, newLayout } from "./reqFunctions/screenerLayouts.js"
+import { contactMessage } from "./reqFunctions/contact.js"
+import { authenticateJWT } from "./functions.js"
+import { newNote, noteUpdate } from "./reqFunctions/notes.js"
+import { getTrades, newTrade } from "./reqFunctions/trades.js"
+import {
+	changePassword,
+	changePricingPlan,
+	updateUserData,
+} from "./reqFunctions/userUpdates.js"
 
 // HASHING
-const saltRounds = 10
+export const saltRounds = 10
 export const secretKey = "hello"
 
 // TEMPLATE
@@ -121,7 +131,7 @@ const messageSchema = new Schema({
 	message: String,
 })
 
-const Message = messageConn.model("Message", messageSchema)
+export const Message = messageConn.model("Message", messageSchema)
 
 // PASSPORT SOCIAL LOGIN STRATEGIES
 passport.use(
@@ -146,23 +156,6 @@ passport.use(
 		fbLogin
 	)
 )
-
-const authenticateJWT = (req, res, next) => {
-	const token = req.header("Authorization")?.split(" ")[1]
-
-	if (!token) {
-		return res.status(401).json({ message: "Unauthorized" })
-	}
-
-	jsonwebtoken.verify(token, secretKey, (err, user) => {
-		if (err) {
-			return res.status(403).json({ message: "Invalid token" })
-		}
-
-		req.user = user
-		next()
-	})
-}
 
 // ROUTES
 
@@ -208,246 +201,25 @@ app.post("/api/socialdata", socialData)
 app.post("/api/signup", signup)
 app.post("/api/checkuser", checkUser)
 
-// NEW
-app.post("/api/newtrade", async (req, res) => {
-	const { id, stock, pl, date, time, action } = req.body
-	try {
-		const user = await User.findById(id)
-		user.trades = [
-			...user.trades,
-			{
-				stock: stock,
-				pl: pl,
-				date: date,
-				time: time,
-				action: action,
-			},
-		]
-		user.trades = [
-			...user.trades.sort((a, b) => {
-				return new Date(b.date).getTime() - new Date(a.date).getTime()
-			}),
-		]
-		await user.save()
-		const returnUser = await User.findById(id)
-		res.status(200).json({ trades: returnUser.trades })
-	} catch (error) {
-		console.log(error)
-	}
-})
+// TRADES
+app.post("/api/newtrade", newTrade)
+app.post("/api/get-trades", getTrades)
 
-app.post("/api/tradesfile", async (req, res) => {
-	const file = req.body.data
-	const id = req.body.id
+// NOTES
+app.post("/api/note", newNote)
+app.patch("/api/noteupdate", noteUpdate)
 
-	try {
-		const addTrades = async (trades) => {
-			return Promise.all(
-				trades.map(async (trade) => {
-					const {
-						stock,
-						accAfter,
-						accBefore,
-						pl,
-						date,
-						time,
-						action,
-					} = trade
-
-					await User.findByIdAndUpdate(id, {
-						$push: {
-							trades: {
-								stock,
-								accBefore,
-								accAfter,
-								pl,
-								date,
-								time,
-								action,
-							},
-						},
-					})
-				})
-			)
-		}
-
-		await addTrades(file)
-		const user = await User.findById(id)
-		res.json({ trades: user.trades })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/get-trades", async (req, res) => {
-	const { userId } = req.body
-
-	try {
-		const user = await User.findById(userId)
-		res.status(200).json({
-			trades: user.trades,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/note", async (req, res) => {
-	try {
-		const update = await User.findByIdAndUpdate(req.body.id, {
-			$push: {
-				notes: {
-					image: req.body.image,
-					text: req.body.text,
-					pinned: false,
-				},
-			},
-		})
-		await update.save()
-		const user = await User.findById(req.body.id)
-		res.json({ notes: user.notes })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.patch("/api/noteupdate", async (req, res) => {
-	const func = req.body.func
-	const id = req.body.id
-	const index = req.body.index
-
-	try {
-		const user = await User.findById(id)
-
-		if (func === "pin") {
-			user.notes[index].pinned = true
-		}
-		if (func === "unpin") {
-			user.notes[index].pinned = false
-		}
-		if (func === "delete") {
-			user.notes.pull(user.notes[index])
-		}
-
-		await user.save()
-
-		const updatedUser = await User.findById(id)
-		res.json({ notes: updatedUser.notes })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-//////////////////////////////////////////////////////////////////////////////////
 // USER UPDATES
-
-app.patch("/api/updateaccbalance", async (req, res) => {
-	try {
-		const user = await User.findByIdAndUpdate(
-			req.body.id,
-			{
-				$set: { "data.account": req.body.setAcc },
-			},
-			{ new: true }
-		)
-		res.json({ message: "success", info: user.data })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/updateuser", async (req, res) => {
-	const { id, username, email, balance, image } = req.body
-	try {
-		const user = await User.findById(id)
-
-		const newUsername = username ? username : user.data.username
-		const newEmail = email ? email : user.email
-		const newBalance = balance ? balance : user.data.account
-		const newImage = image ? image : user.data.iamge
-
-		const updatedUser = await User.findByIdAndUpdate(id, {
-			$set: {
-				"data.username": newUsername,
-				email: newEmail,
-				"data.account": newBalance,
-				"data.email": newEmail,
-				"data.image": newImage,
-			},
-		})
-
-		await updatedUser.save()
-
-		const response = await User.findById(id)
-
-		res.json({
-			message: "success",
-			info: response.data,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/changepassword", (req, res) => {
-	try {
-		_hash(req.body.password, saltRounds, async (err, hash) => {
-			if (!err) {
-				const user = await User.findByIdAndUpdate(req.body.id, {
-					$set: { password: hash },
-				})
-				await user.save()
-
-				res.json({
-					message: "success",
-				})
-			} else {
-				res.json({ error: err })
-			}
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/changeplan", async (req, res) => {
-	const id = req.body.id
-	const pricingPlan = req.body.plan
-
-	try {
-		const user = await User.findById(id)
-		user.data.pricing = pricingPlan
-		await user.save()
-		res.json({
-			info: user.data,
-		})
-	} catch (error) {
-		console.log(error)
-	}
-})
-
+app.post("/api/updateuser", updateUserData)
+app.post("/api/changepassword", changePassword)
+app.post("/api/changeplan", changePricingPlan)
 app.patch("/api/deleteuser", deleteUser)
 app.delete("/api/deleteTrades/:id", authenticateJWT, deleteTrades)
 
-//////////////////////////////////////////////////////////////////////////////////
 // MESSAGES (CONTACT)
 
-app.post("/api/message", async (req, res) => {
-	try {
-		const message = new Message({
-			userId: req.body.id,
-			email: req.body.email,
-			question: req.body.question,
-			message: req.body.message,
-		})
-		await message.save()
-		res.json({ message: "Message succesfully sent" })
-	} catch (error) {
-		console.log(error)
-	}
-})
+app.post("/api/message", contactMessage)
 
-///////////////////////////////////////////////////////////////////////////////////
 // GETTING SCREENERS INFO / SENDING INFO
 
 let client = null
@@ -470,47 +242,11 @@ app.post("/api/hod-screener-data", async (req, res) => {
 	res.json({ message: "success" })
 })
 
-//////////////////////////////////////////////////////////////////////////////////
 // SCREENER LAYOUTS
-
-app.post("/api/new-layout", async (req, res) => {
-	const layout = req.body.layout
-	const id = req.body.id
-	try {
-		await User.findByIdAndUpdate(req.body.id, {
-			$push: {
-				layouts: layout,
-			},
-		})
-		const user = await User.findById(id)
-
-		res.json({ layouts: user.layouts })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
-app.post("/api/edit-layout", async (req, res) => {
-	const layoutIndex = req.body.layoutIndex
-	const layout = req.body.layout
-	const id = req.body.id
-
-	try {
-		const user = await User.findById(id)
-
-		let userLayout = user.layouts
-		userLayout[layoutIndex] = layout
-
-		await user.save()
-		res.json({ layouts: userLayout })
-	} catch (error) {
-		console.log(error)
-	}
-})
-
+app.post("/api/new-layout", newLayout)
+app.post("/api/edit-layout", editLayout)
 app.put("/api/delete-layout", deleteLayout)
 
-//////////////////////////////////////////////////////////////////////////////////
 // CHATROOM SERVER
 
 // NOTIFICATION SOCKET
@@ -798,15 +534,7 @@ sendFriendReq.on("connection", (ws) => {
 // CHATROOM ROUTES
 
 app.put("/api/remove-friend", removeFriend)
-
-app.patch("/api/logout", (req, res) => {
-	const id = req.body.id
-	notiSockets.delete(id)
-	messageSockets.delete(id)
-	adSockets.delete(id)
-	reqSockets.delete(id)
-	res.status(200).json({ status: "success" })
-})
+app.patch("/api/logout", logout)
 
 // FRIEND MENU
 app.post("/api/new-message", sendMessage)
