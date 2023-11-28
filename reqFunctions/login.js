@@ -1,4 +1,4 @@
-import { User } from "../server.js"
+import { User, secretKey } from "../server.js"
 import jsonwebtoken from "jsonwebtoken"
 import { compare } from "bcrypt"
 

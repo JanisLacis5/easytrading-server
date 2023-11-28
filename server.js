@@ -13,7 +13,7 @@ import session from "express-session"
 import jsonwebtoken from "jsonwebtoken"
 import { WebSocketServer } from "ws"
 import _ from "lodash"
-import { ibkrFile } from "./reqFunctions/fileReaders.js"
+import { ibkrFile, trwFile } from "./reqFunctions/fileReaders.js"
 import {
 	deleteLayout,
 	deleteTrades,
@@ -41,10 +41,11 @@ import {
 } from "./reqFunctions/socialLoginSignup.js"
 import { idLogin, login } from "./reqFunctions/login.js"
 import { checkUser, signup } from "./reqFunctions/signup.js"
+import axios from "axios"
 
 // HASHING
 const saltRounds = 10
-const secretKey = "hello"
+export const secretKey = "hello"
 
 // TEMPLATE
 const app = express()
@@ -823,6 +824,7 @@ app.patch("/api/delete-chat", deleteChat)
 
 // FILE READERS
 app.post("/api/ibkr-file", ibkrFile)
+app.post("/api/trw-file", trwFile)
 
 // ROUTES END
 
