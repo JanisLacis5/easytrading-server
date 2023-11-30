@@ -1,10 +1,11 @@
 import jsonwebtoken from "jsonwebtoken"
-import { User } from "../server.js"
-import { hash as _hash } from "bcrypt"
+import { User, saltRounds, secretKey } from "../server.js"
+import bcrypt from "bcrypt"
 
 export const signup = (req, res) => {
+	console.log("sent")
 	try {
-		_hash(req.body.password, saltRounds, async (err, hash) => {
+		bcrypt.hash(req.body.password, saltRounds, async (err, hash) => {
 			if (!err) {
 				const user = new User({
 					email: req.body.email,

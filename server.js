@@ -251,7 +251,7 @@ app.put("/api/delete-layout", deleteLayout)
 
 // NOTIFICATION SOCKET
 
-const notiSockets = new Map()
+export const notiSockets = new Map()
 const notiServer = new WebSocketServer({
 	port: 5000,
 })
@@ -265,7 +265,7 @@ notiServer.on("connection", (ws) => {
 })
 
 // MESSAGE SOCKET
-const messageSockets = new Map()
+export const messageSockets = new Map()
 const chatroomServer = new WebSocketServer({
 	port: 3002,
 })
@@ -350,7 +350,7 @@ chatroomServer.on("connection", (ws) => {
 })
 
 // ACCEPT / DECLINE FRIEND SOCKET
-const adSockets = new Map()
+export const adSockets = new Map()
 const friendServer = new WebSocketServer({
 	port: 3003,
 })
@@ -436,7 +436,7 @@ friendServer.on("connection", (ws) => {
 })
 
 // SEND FRIEND REQUEST
-const reqSockets = new Map()
+export const reqSockets = new Map()
 const sendFriendReq = new WebSocketServer({
 	port: 3004,
 })
